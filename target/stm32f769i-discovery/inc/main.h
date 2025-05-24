@@ -59,6 +59,7 @@
 uint8_t UART_Init(void);
 uint32_t UART_Write(const uint8_t *data, uint32_t len);
 uint32_t UART_Read(uint8_t *data, uint32_t len);
+uint32_t UART_Available(void);
 
 #ifdef __cplusplus
 }

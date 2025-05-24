@@ -146,6 +146,8 @@ static void StartThread(void const * argument)
   */
 static void BSP_Config(void)
 {
+  UART_Init();
+
   /* Initialize the LCD */
   BSP_LCD_Init();
 
@@ -163,12 +165,6 @@ static void BSP_Config(void)
   /* Show Header and Footer texts */
   LCD_LOG_SetHeader((uint8_t *)"Webserver Application Socket API");
   LCD_LOG_SetFooter((uint8_t *)"STM32F769I-DISOVERY board");
-
-  LCD_UsrLog ("  State: Ethernet Initialization ...\n");
-
-  UART_Init();
-
-  UART_Write((const uint8_t*)"Teste\n", 6);
 }
 
 /**

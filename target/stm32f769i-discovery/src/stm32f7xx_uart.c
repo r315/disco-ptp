@@ -6,29 +6,25 @@
  */
 #include <stdint.h>
 #include "cmsis_os.h"
+#include "stm32f7xx.h"
 #include "stm32f7xx_hal.h"
-// #include "main.h"
 
-//#define ENABLE_UART_FIFO
-#define USE_CMSIS_OS
-
-#ifdef USE_CMSIS_OS
+#ifdef ENABLE_UART_CMSIS_OS
 #include "cmsis_os.h"
 #endif
 
-#define UART_UART1_TIMEOUT 1000
-#define UART_IRQ USART1_IRQn
-
-#ifdef USE_CMSIS_OS
-#define UART_QUEUE_SIZE 256
+#define UART_UART1_TIMEOUT  1000
+#define UART_IRQ            USART1_IRQn
+#define UART_QUEUE_SIZE     256
 
 static UART_HandleTypeDef huart1;
 
+#ifdef ENABLE_UART_CMSIS_OS
 #if (osCMSIS <= 0x20000U)
 
 static osMessageQId uartRxQueueId, uartTxQueueId;
 
-void usartHandler(UART_HandleTypeDef *huart)
+static void usartHandler(UART_HandleTypeDef *huart)
 {
     uint32_t isrflags = huart->Instance->ISR;
     uint32_t cr1its = huart->Instance->CR1;
@@ -38,7 +34,7 @@ void usartHandler(UART_HandleTypeDef *huart)
                                                  USART_ISR_FE | USART_ISR_ORE | USART_ISR_NE | USART_ISR_RTOF));
     if (errorflags == 0U) {
         if (((isrflags & USART_ISR_RXNE) != 0U) && ((cr1its & USART_CR1_RXNEIE) != 0U)) {
-            osStatus status = osMessagePut(uartRxQueueId, (uint32_t)&huart->Instance->RDR, 0);
+            osStatus status = osMessagePut(uartRxQueueId, (uint32_t)huart->Instance->RDR, 0);
             if (status != osOK) {
                 return;
             }
@@ -47,8 +43,8 @@ void usartHandler(UART_HandleTypeDef *huart)
         if (((isrflags & USART_ISR_TXE) != 0U) && ((cr1its & USART_CR1_TXEIE) != 0U)) {
             osEvent event = osMessageGet(uartTxQueueId, 0);
 
-            if (event.status != osOK) {
-                /* No data transmitted, disable TXE interrupt */
+            if (event.status != osEventMessage) {
+                /* No data, disable TXE interrupt */
                 CLEAR_BIT(huart->Instance->CR1, USART_CR1_TXEIE);
             }
 
@@ -60,11 +56,16 @@ void usartHandler(UART_HandleTypeDef *huart)
     }
 }
 
+uint32_t UART_Available(void)
+{
+    return osMessageWaiting(uartRxQueueId);
+}
+
 uint32_t UART_Write(const uint8_t *data, uint32_t len)
 {
     for (uint32_t i = 0; i < len; i++, data++)
     {
-        osStatus status = osMessagePut(uartTxQueueId, (uint32_t)data, UART_UART1_TIMEOUT);
+        osStatus status = osMessagePut(uartTxQueueId, (uint32_t)*data, UART_UART1_TIMEOUT);
         if (status != osOK) {
             return 0;
         }
@@ -77,14 +78,18 @@ uint32_t UART_Write(const uint8_t *data, uint32_t len)
 
 uint32_t UART_Read(uint8_t *data, uint32_t len)
 {
-    char c;
-    //osMessageQueueGet(uartRxQueueId, (void *)&c, NULL, portMAX_DELAY);
-    return c;
-}
+    uint32_t count = 0;
 
-uint8_t UART_Available(void)
-{
-    return 0;
+    while (count < len){
+        while (UART_Available() == 0);
+        osEvent event = osMessageGet(uartRxQueueId, portMAX_DELAY);
+        if (event.status == osEventMessage) {
+            *data++ = (uint8_t)event.value.v;
+            count++;
+        }
+    }
+
+    return count;
 }
 
 void USART1_IRQHandler(void)
@@ -94,7 +99,8 @@ void USART1_IRQHandler(void)
 
 #else
 static osMessageQueueId_t uartTxQueueId, uartRxQueueId;
-#endif
+//TODO: cmsis_os2
+#endif /* ENABLE_UART_CMSIS_OS */
 
 
 #elif defined(ENABLE_UART_FIFO)
@@ -230,7 +236,7 @@ uint8_t UART_Init(void)
         return 0;
     }
 
-#if defined(USE_CMSIS_OS)
+#if defined(ENABLE_UART_CMSIS_OS)
     if (osKernelRunning())
     {
         osMessageQDef_t queue_def;
@@ -245,7 +251,7 @@ uint8_t UART_Init(void)
             return 0;
         }
 
-        // HAL_NVIC_SetPriority(UART_IRQ, 16, 16);
+        HAL_NVIC_SetPriority(UART_IRQ, 5, 0);
         HAL_NVIC_EnableIRQ(UART_IRQ);
         SET_BIT(huart1.Instance->CR1, USART_CR1_RXNEIE);
     }

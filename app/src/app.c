@@ -9,11 +9,92 @@
 #include "lwip/netif.h"
 #include "lwip/tcpip.h"
 #include "lwip/ip_addr.h"
-#ifdef ENABLE_CLI
-#include "cli_simple.h"
-#endif
 
 static struct netif gnetif; /* network interface structure */
+
+#ifdef ENABLE_CLI
+
+#include "cli_simple.h"
+
+static int serial_available(void){ return UART_Available(); }
+static int serial_read(char *buf, int len){ return UART_Read(buf, len); }
+static int serial_write(const char *buf, int len){ return UART_Write(buf, len); }
+
+int __io_putchar(int ch) { return UART_Write((uint8_t*)&ch, 1); }
+int __io_getchar(void) { uint8_t ch; UART_Read(&ch, 1); return ch; }
+
+static stdinout_t serial = {
+    .available = serial_available,
+    .read = serial_read,
+    .write = serial_write
+};
+
+static int cmdReset(int argc, char **argv)
+{
+    NVIC_SystemReset();
+    return CLI_OK;
+}
+
+static int cmdPhy(int argc, char **argv)
+{
+	extern ETH_HandleTypeDef EthHandle;
+	uint32_t reg_value;
+
+	HAL_ETH_ReadPHYRegister(&EthHandle, PHY_BCR, &reg_value);
+	printf("BCR 0x%08lX\n", reg_value);
+	HAL_ETH_ReadPHYRegister(&EthHandle, PHY_BSR, &reg_value);
+	printf("BSR 0x%08lX\n", reg_value);
+	HAL_ETH_ReadPHYRegister(&EthHandle, 2, &reg_value);
+	printf("ID1 0x%08lX\n", reg_value);
+	HAL_ETH_ReadPHYRegister(&EthHandle, 3, &reg_value);
+	printf("ID2 0x%08lX\n", reg_value);
+
+	return CLI_OK;
+}
+
+static int cmdDhcps(int argc, char **argv)
+{
+	if(!strcmp(argv[1], "start")){
+		//dhcp_server_start();
+	}
+
+	if(!strcmp(argv[1], "stop")){
+		//dhcp_server_stop();
+	}
+    return CLI_OK;
+}
+
+static const cli_command_t cli_cmds [] = {
+    {"help", ((int (*)(int, char**))CLI_Commands)},
+    {"reset", cmdReset},
+    {"phy", cmdPhy},
+	{"dhcps", cmdDhcps},
+};
+
+void CLI_thread(void const *argument)
+{
+    CLI_Init("ptp>", &serial);
+    CLI_RegisterCommand(cli_cmds, sizeof(cli_cmds)/sizeof(cli_command_t));
+
+	printf("CPU clock: %luMHz\n", SystemCoreClock/1000000UL);
+
+	while(1){
+		 if(CLI_ReadLine() == CLI_LINE_READ){
+			CLI_HandleLine();
+		}
+	}
+}
+#else
+/* Redirect the printf to the LCD */
+#ifdef __GNUC__
+/* With GCC, small printf (option LD Linker->Libraries->Small printf
+   set to 'Yes') calls __io_putchar() */
+int __io_putchar(int ch) { return LCD_LOG_Putchar(ch); }
+#else
+int fputc(int ch, FILE *f) { return LCD_LOG_Putchar(ch); }
+#endif /* __GNUC__ */
+
+#endif /* ENABLE_CLI */
 
 /**
  * @brief  Initializes the lwIP stack
@@ -53,66 +134,16 @@ static void Netif_Config(void)
     }
 }
 
-#ifdef ENABLE_CLI
-static int cmdReset(int argc, char **argv)
-{
-    NVIC_SystemReset();
-    return CLI_OK;
-}
-
-static int cmdPhy(int argc, char **argv)
-{
-	extern ETH_HandleTypeDef heth;
-	uint32_t reg_value;
-
-	HAL_ETH_ReadPHYRegister(&heth, PHY_BCR, &reg_value);
-	printf("BCR 0x%08lX\n", reg_value);
-	HAL_ETH_ReadPHYRegister(&heth, PHY_BSR, &reg_value);
-	printf("BSR 0x%08lX\n", reg_value);
-	HAL_ETH_ReadPHYRegister(&heth, 2, &reg_value);
-	printf("ID1 0x%08lX\n", reg_value);
-	HAL_ETH_ReadPHYRegister(&heth, 3, &reg_value);
-	printf("ID2 0x%08lX\n", reg_value);
-
-	return CLI_OK;
-}
-
-static int cmdDhcps(int argc, char **argv)
-{
-	if(!strcmp(argv[1], "start")){
-		//dhcp_server_start();
-	}
-
-	if(!strcmp(argv[1], "stop")){
-		//dhcp_server_stop();
-	}
-    return CLI_OK;
-}
-
-static const cli_command_t cli_cmds [] = {
-    {"help", ((int (*)(int, char**))CLI_Commands)},
-    {"reset", cmdReset},
-    {"phy", cmdPhy},
-	{"dhcps", cmdDhcps},
-};
-
-void CLI_thread(void const *argument)
-{
-    CLI_RegisterCommand(cli_cmds, sizeof(cli_cmds)/sizeof(cli_command_t));
-	CLI_Clear();
-
-	printf("CPU clock: %luMHz\n", SystemCoreClock/1000000UL);
-
-	while(1){
-		 if(CLI_ReadLine() == CLI_LINE_READ){
-			CLI_HandleLine();
-		}
-	}
-}
-#endif
-
 void APP_Setup(void)
 {
+#ifdef ENABLE_CLI
+    osThreadDef(CLI, CLI_thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE * 2);
+    osThreadCreate(osThread(CLI), NULL);
+#endif
+
+    CLI_Clear();
+    LCD_UsrLog ("  State: Ethernet Initialization ...\n");
+
     /* Create tcp_ip stack thread */
     tcpip_init(NULL, NULL);
 
@@ -129,10 +160,5 @@ void APP_Setup(void)
     /* Start DHCPClient */
     osThreadDef(DHCP, DHCP_thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
     osThreadCreate(osThread(DHCP), &gnetif);
-#endif
-
-#ifdef USE_CLI
-    osThreadDef(CLI, CLI_thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE);
-    osThreadCreate(osThread(CLI), NULL);
 #endif
 }

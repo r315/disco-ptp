@@ -8,9 +8,9 @@ RELEASE =no
 # Features
 #######################################
 FEATURES = \
-#ENABLE_CLI \
-ENABLE_UART \
-ENABLE_DHCP \
+ENABLE_UART_CMSIS_OS \
+ENABLE_CLI \
+#ENABLE_DHCP \
 
 #######################################
 # paths
@@ -76,8 +76,8 @@ $(DRIVERS_SOC)/src/stm32f7xx_hal_uart.c \
 $(DRIVERS_SOC)/src/stm32f7xx_ll_fmc.c \
 
 COMPONENT_SOURCES = \
-$(UTILITIES_PATH)/Log/lcd_log.c \
 $(DRIVERS_BSP)/../Components/otm8009a/otm8009a.c \
+$(UTILITIES_PATH)/Log/lcd_log.c \
 
 FREERTOS_SOURCES = \
 $(MIDDLEWARE_PATH)/FreeRTOS/Source/portable/GCC/ARM_CM7/r0p1/port.c \
