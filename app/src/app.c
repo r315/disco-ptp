@@ -78,11 +78,7 @@ void CLI_thread(void const *argument)
 
 	printf("CPU clock: %luMHz\n", SystemCoreClock/1000000UL);
 
-	while(1){
-		 if(CLI_ReadLine() == CLI_LINE_READ){
-			CLI_HandleLine();
-		}
-	}
+	CLI_Run((void*)argument);
 }
 #else
 /* Redirect the printf to the LCD */
