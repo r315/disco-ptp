@@ -23,7 +23,7 @@ static int serial_write(const char *buf, int len){ return UART_Write(buf, len); 
 int __io_putchar(int ch) { return UART_Write((uint8_t*)&ch, 1); }
 int __io_getchar(void) { uint8_t ch; UART_Read(&ch, 1); return ch; }
 
-static stdinout_t serial = {
+static const stdinout_t serial = {
     .available = serial_available,
     .read = serial_read,
     .write = serial_write
@@ -78,14 +78,20 @@ void CLI_thread(void const *argument)
 
 	printf("CPU clock: %luMHz\n", SystemCoreClock/1000000UL);
 
-	CLI_Run((void*)argument);
+	CLI_Run((void(*)(void))osThreadYield);
 }
 #else
 /* Redirect the printf to the LCD */
 #ifdef __GNUC__
 /* With GCC, small printf (option LD Linker->Libraries->Small printf
    set to 'Yes') calls __io_putchar() */
-int __io_putchar(int ch) { return LCD_LOG_Putchar(ch); }
+int __io_putchar(int ch) {
+#ifdef ENABLE_UART
+    return UART_Write((uint8_t*)&ch, 1);
+#else
+    return LCD_LOG_Putchar(ch);
+#endif
+}
 #else
 int fputc(int ch, FILE *f) { return LCD_LOG_Putchar(ch); }
 #endif /* __GNUC__ */
@@ -133,12 +139,12 @@ static void Netif_Config(void)
 void APP_Setup(void)
 {
 #ifdef ENABLE_CLI
-    osThreadDef(CLI, CLI_thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE * 2);
+    osThreadDef(CLI, CLI_thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
     osThreadCreate(osThread(CLI), NULL);
+    CLI_Clear();
 #endif
 
-    CLI_Clear();
-    LCD_UsrLog ("  State: Ethernet Initialization ...\n");
+    LOG_Usr ("  State: Ethernet Initialization ...\n");
 
     /* Create tcp_ip stack thread */
     tcpip_init(NULL, NULL);

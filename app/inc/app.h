@@ -25,6 +25,8 @@
 #define GW_ADDR2   0
 #define GW_ADDR3   1
 
+#define LOG_Usr LCD_UsrLog
+
 void APP_Setup(void);
 
 #endif

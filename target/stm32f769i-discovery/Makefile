@@ -8,6 +8,7 @@ RELEASE =no
 # Features
 #######################################
 FEATURES = \
+ENABLE_UART \
 ENABLE_UART_CMSIS_OS \
 ENABLE_CLI \
 #ENABLE_DHCP \

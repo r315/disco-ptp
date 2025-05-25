@@ -251,7 +251,7 @@ uint8_t UART_Init(void)
             return 0;
         }
 
-        HAL_NVIC_SetPriority(UART_IRQ, 5, 0);
+        HAL_NVIC_SetPriority(UART_IRQ, 8, 0);
         HAL_NVIC_EnableIRQ(UART_IRQ);
         SET_BIT(huart1.Instance->CR1, USART_CR1_RXNEIE);
     }
