@@ -11,7 +11,9 @@ FEATURES = \
 ENABLE_UART \
 ENABLE_UART_CMSIS_OS \
 ENABLE_CLI \
+ENABLE_DHCP_SERVER \
 #ENABLE_DHCP \
+
 
 #######################################
 # paths
@@ -114,6 +116,7 @@ $(TARGET_PATH)/src/syscalls.c \
 $(TARGET_PATH)/src/main.c \
 $(APP_PATH)/src/ethernetif.c \
 $(APP_PATH)/src/httpserver-socket.c \
+$(APP_PATH)/src/dhcp_server.c \
 $(APP_PATH)/src/app_ethernet.c \
 $(APP_PATH)/src/app.c \
 $(MIDDLEWARE_PATH)/cli-simple/cli_simple.c \

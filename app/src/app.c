@@ -9,6 +9,7 @@
 #include "lwip/netif.h"
 #include "lwip/tcpip.h"
 #include "lwip/ip_addr.h"
+#include "dhcp_server.h"
 
 static struct netif gnetif; /* network interface structure */
 
@@ -158,6 +159,9 @@ void APP_Setup(void)
     /* Notify user about the network interface config */
     User_notification(&gnetif);
 
+#ifdef ENABLE_DHCP_SERVER
+    dhcp_server_init(gnetif.ip_addr);
+#endif
 #ifdef ENABLE_DHCP
     /* Start DHCPClient */
     osThreadDef(DHCP, DHCP_thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);

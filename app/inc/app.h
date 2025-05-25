@@ -3,9 +3,10 @@
 
 #include "lcd_log.h"
 
-#define ENABLE_DHCP       /* enable DHCP, if disabled static address is used*/
+//#define ENABLE_DHCP       /* enable DHCP, if disabled static address is used*/
 //#define ENABLE_CLI
 //#define ENABLE_UART
+//#define ENABLE_DHCP_SERVER
 
 /*Static IP ADDRESS*/
 #define IP_ADDR0   192
