@@ -22,9 +22,6 @@ static int serial_available(void){ return UART_Available(); }
 static int serial_read(char *buf, int len){ return UART_Read(buf, len); }
 static int serial_write(const char *buf, int len){ return UART_Write(buf, len); }
 
-int __io_putchar(int ch) { return UART_Write((uint8_t*)&ch, 1); }
-int __io_getchar(void) { uint8_t ch; UART_Read(&ch, 1); return ch; }
-
 static const stdinout_t serial = {
     .available = serial_available,
     .read = serial_read,
@@ -75,7 +72,6 @@ static int cmdDhcps(int argc, char **argv)
     return CLI_OK;
 }
 
-
 static int cmdPing(int argc, char **argv)
 {
     ip_addr_t target_addr;
@@ -114,23 +110,24 @@ void CLI_thread(void const *argument)
 
 	CLI_Run((void(*)(void))osThreadYield);
 }
-#else
+#endif /* ENABLE_CLI */
+
 /* Redirect the printf to the LCD */
 #ifdef __GNUC__
 /* With GCC, small printf (option LD Linker->Libraries->Small printf
-   set to 'Yes') calls __io_putchar() */
-int __io_putchar(int ch) {
+set to 'Yes') calls __io_putchar() */
+int __io_getchar(void) { uint8_t ch; UART_Read(&ch, 1); return ch; }
+//int __io_putchar(int ch) { return UART_Write((uint8_t*)&ch, 1); }
+int __io_putchar(int ch)
+{
 #ifdef ENABLE_UART
-    return UART_Write((uint8_t*)&ch, 1);
-#else
-    return LCD_LOG_Putchar(ch);
+    UART_Write((uint8_t*)&ch, 1);
 #endif
+    return LCD_LOG_Putchar(ch);
 }
 #else
 int fputc(int ch, FILE *f) { return LCD_LOG_Putchar(ch); }
 #endif /* __GNUC__ */
-
-#endif /* ENABLE_CLI */
 
 /**
  * @brief  Initializes the lwIP stack
@@ -178,7 +175,7 @@ void APP_Setup(void)
     CLI_Clear();
 #endif
 
-    LOG_Usr ("  State: Ethernet Initialization ...\n");
+    LOG_INF ("  State: Ethernet Initialization ...");
 
     /* Create tcp_ip stack thread */
     tcpip_init(NULL, NULL);

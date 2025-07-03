@@ -76,7 +76,7 @@ void User_notification(struct netif *netif)
 #else
     uint8_t iptxt[20];
     sprintf((char *)iptxt, "%s", ip4addr_ntoa((const ip4_addr_t *)&netif->ip_addr));
-    LOG_Usr ("Static IP address: %s\n", iptxt);
+    LOG_INF ("Static IP address: %s\n", iptxt);
 #endif /* ENABLE_DHCP */
   }
   else
@@ -85,7 +85,7 @@ void User_notification(struct netif *netif)
     /* Update DHCP state machine */
     DHCP_state = DHCP_LINK_DOWN;
 #endif  /* ENABLE_DHCP */
-    LOG_Usr ("The network cable is not connected \n");
+    LOG_INF ("The network cable is not connected \n");
   }
 }
 
@@ -115,7 +115,7 @@ void DHCP_thread(void const * argument)
         ip_addr_set_zero_ip4(&netif->gw);
         dhcp_start(netif);
         DHCP_state = DHCP_WAIT_ADDRESS;
-        LOG_Usr ("  State: Looking for DHCP server ...\n");
+        LOG_INF ("  State: Looking for DHCP server ...\n");
       }
       break;
 
@@ -126,7 +126,7 @@ void DHCP_thread(void const * argument)
           DHCP_state = DHCP_ADDRESS_ASSIGNED;
 
           sprintf((char *)iptxt, "%s", ip4addr_ntoa((const ip4_addr_t *)&netif->ip_addr));
-          LOG_Usr ("IP address assigned by a DHCP server: %s\n", iptxt);
+          LOG_INF ("IP address assigned by a DHCP server: %s\n", iptxt);
         }
         else
         {
@@ -147,8 +147,8 @@ void DHCP_thread(void const * argument)
             netif_set_addr(netif, ip_2_ip4(&ipaddr), ip_2_ip4(&netmask), ip_2_ip4(&gw));
 
             sprintf((char *)iptxt, "%s", ip4addr_ntoa((const ip4_addr_t *)&netif->ip_addr));
-            LOG_Usr ("DHCP Timeout !! \n");
-            LOG_Usr ("Static IP address: %s\n", iptxt);
+            LOG_INF ("DHCP Timeout !! \n");
+            LOG_INF ("Static IP address: %s\n", iptxt);
           }
         }
       }

@@ -85,7 +85,6 @@ typedef struct _LCD_LOG_line
 {
   uint8_t  line[128];
   uint32_t color;
-
 }LCD_LOG_line;
 
 /**
@@ -95,24 +94,49 @@ typedef struct _LCD_LOG_line
 /** @defgroup LCD_LOG_Exported_Macros
   * @{
   */
+
+#define LOG_PRINT(...) \
+    do { printf(__VA_ARGS__); putchar('\n'); } while(0)
+
+#if 0
 #define  LCD_ErrLog(...)    do { \
-                                 LCD_LineColor = LCD_COLOR_RED;\
+                                 lcd_state.LineColor = LCD_COLOR_RED;\
                                  printf("ERROR: ") ;\
                                  printf(__VA_ARGS__);\
-                                 LCD_LineColor = LCD_LOG_DEFAULT_COLOR;\
+                                 lcd_state.LineColor = LCD_LOG_DEFAULT_COLOR;\
                                }while (0)
 
-#define  LCD_UsrLog(...)    do { \
+                               #define  LCD_UsrLog(...)    do { \
 	                             LCD_LineColor = LCD_LOG_TEXT_COLOR;\
                                  printf(__VA_ARGS__);\
                                } while (0)
 
 
 #define  LCD_DbgLog(...)    do { \
-                                 LCD_LineColor = LCD_COLOR_CYAN;\
+                                 lcd_state.LineColor = LCD_COLOR_CYAN;\
                                  printf(__VA_ARGS__);\
-                                 LCD_LineColor = LCD_LOG_DEFAULT_COLOR;\
+                                 lcd_state.LineColor = LCD_LOG_DEFAULT_COLOR;\
                                }while (0)
+                    #endif
+
+
+
+//https://gist.github.com/viniciusdaniel/53a98cbb1d8cac1bb473da23f5708836
+#define VT100_CLEAR     "\e[2J"
+#define VT100_NORMAL    "\e[0m"
+#define VT100_BOLD      "\e[1m"
+#define VT100_RED       "\e[31m"
+#define VT100_GREEN     "\e[32m"
+#define VT100_YELLOW    "\e[33m"
+#define VT100_BLUE      "\e[34m"
+#define VT100_MAGENTA   "\e[35m"
+#define VT100_CYAN      "\e[36m"
+
+#define LOG_INF(...) LOG_PRINT(VT100_GREEN "INFO: " VT100_NORMAL __VA_ARGS__)
+#define LOG_WRN(...) LOG_PRINT(VT100_YELLOW "WARN: " VT100_NORMAL __VA_ARGS__)
+#define LOG_ERR(...) LOG_PRINT(VT100_RED "ERROR: " VT100_NORMAL __VA_ARGS__)
+#define LOG_DBG(...) LOG_PRINT(VT100_CYAN "DBG: " VT100_NORMAL __VA_ARGS__)
+
 /**
   * @}
   */
