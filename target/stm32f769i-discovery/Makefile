@@ -7,12 +7,11 @@ RELEASE =no
 #######################################
 # Features
 #######################################
-FEATURES = \
-ENABLE_UART \
-ENABLE_UART_CMSIS_OS \
-ENABLE_CLI \
-ENABLE_DHCP_SERVER \
-#ENABLE_DHCP \
+FEATURES += ENABLE_UART
+FEATURES += ENABLE_UART_CMSIS_OS
+FEATURES += ENABLE_CLI
+#FEATURES += ENABLE_DHCP
+FEATURES += ENABLE_DHCP_SERVER
 
 
 #######################################
