@@ -10,6 +10,7 @@
 #include "lwip/tcpip.h"
 #include "lwip/ip_addr.h"
 #include "dhcp_server.h"
+#include "ping.h"
 
 static struct netif gnetif; /* network interface structure */
 
@@ -74,11 +75,34 @@ static int cmdDhcps(int argc, char **argv)
     return CLI_OK;
 }
 
+
+static int cmdPing(int argc, char **argv)
+{
+    ip_addr_t target_addr;
+
+    if (argc < 2) {
+        printf("Usage: ping <IP address>\n");
+        return CLI_OK;
+    }
+
+    if (!ipaddr_aton(argv[1], &target_addr)) {
+        printf("Invalid IP address: %s\n", argv[1]);
+        return CLI_BAD_PARAM;
+    }
+
+    printf("Pinging %s...\n", argv[1]);
+
+    do_ping(&target_addr, 4);
+
+    return CLI_OK;
+}
+
 static const cli_command_t cli_cmds [] = {
     {"help", ((int (*)(int, char**))CLI_Commands)},
     {"reset", cmdReset},
     {"phy", cmdPhy},
 	{"dhcps", cmdDhcps},
+	{"ping", cmdPing},
 };
 
 void CLI_thread(void const *argument)

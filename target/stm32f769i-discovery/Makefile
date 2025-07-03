@@ -113,12 +113,13 @@ $(TARGET_PATH)/src/stm32f7xx_hal_timebase_tim.c \
 $(TARGET_PATH)/src/stm32f7xx_it.c \
 $(TARGET_PATH)/src/syscalls.c \
 $(TARGET_PATH)/src/main.c \
+$(MIDDLEWARE_PATH)/cli-simple/cli_simple.c \
 $(APP_PATH)/src/ethernetif.c \
 $(APP_PATH)/src/httpserver-socket.c \
 $(APP_PATH)/src/dhcp_server.c \
 $(APP_PATH)/src/app_ethernet.c \
 $(APP_PATH)/src/app.c \
-$(MIDDLEWARE_PATH)/cli-simple/cli_simple.c \
+$(APP_PATH)/src/ping.c \
 
 CPP_SOURCES = \
 
