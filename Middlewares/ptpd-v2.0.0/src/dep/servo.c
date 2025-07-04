@@ -120,7 +120,7 @@ static void filter(int32_t * nsec_current, Filter * filt)
 	/* Save previous order of the filter */
 	filt->s_prev = s;
 
-	DBGV("filter: %d -> %d (%d)\n", *nsec_current, filt->y_prev, s);
+	DBGV("filter: %d -> %d (%d)\n", (int)(*nsec_current), (int)filt->y_prev, (int)s);
 
 	/* Actualize target value */
 	*nsec_current = filt->y_prev;
@@ -313,9 +313,9 @@ void updateClock(PtpClock *ptpClock)
 			ptpClock->offsetHistory[0] = ptpClock->currentDS.offsetFromMaster.nanoseconds;
 
 			scaledLogVariance = order(a * a) << 8;
-			filter(&scaledLogVariance, &ptpClock->slv_filt);
+			filter((int32_t*)&scaledLogVariance, &ptpClock->slv_filt);
 			ptpClock->parentDS.observedParentOffsetScaledLogVariance = 17000 + scaledLogVariance;
-			DBGV("updateClock: observed scalled log variance: 0x%x\n", ptpClock->parentDS.observedParentOffsetScaledLogVariance);
+			DBGV("updateClock: observed scalled log variance: 0x%x\n", (unsigned int)ptpClock->parentDS.observedParentOffsetScaledLogVariance);
 		}
 	}
 
@@ -323,12 +323,14 @@ void updateClock(PtpClock *ptpClock)
 	{
 		case E2E:
 			DBG("updateClock: one-way delay averaged (E2E): %d sec %d nsec\n",
-					ptpClock->currentDS.meanPathDelay.seconds, ptpClock->currentDS.meanPathDelay.nanoseconds);
+					(int)ptpClock->currentDS.meanPathDelay.seconds,
+                    (int)ptpClock->currentDS.meanPathDelay.nanoseconds);
 			break;
 
 		case P2P:
 			DBG("updateClock: one-way delay averaged (P2P): %d sec %d nsec\n",
-					ptpClock->portDS.peerMeanPathDelay.seconds, ptpClock->portDS.peerMeanPathDelay.nanoseconds);
+					(int)ptpClock->portDS.peerMeanPathDelay.seconds,
+                    (int)ptpClock->portDS.peerMeanPathDelay.nanoseconds);
 			break;
 
 		default:
@@ -336,7 +338,7 @@ void updateClock(PtpClock *ptpClock)
 	}
 
 	DBG("updateClock: offset from master: %d sec %d nsec\n",
-			ptpClock->currentDS.offsetFromMaster.seconds,
-			ptpClock->currentDS.offsetFromMaster.nanoseconds);
-	DBG("updateClock: observed drift: %d\n", ptpClock->observedDrift);
+			(int)ptpClock->currentDS.offsetFromMaster.seconds,
+			(int)ptpClock->currentDS.offsetFromMaster.nanoseconds);
+	DBG("updateClock: observed drift: %d\n", (int)ptpClock->observedDrift);
 }

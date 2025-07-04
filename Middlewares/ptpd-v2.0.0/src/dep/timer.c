@@ -45,7 +45,7 @@ void timerStop(int32_t index)
 	if (index >= TIMER_ARRAY_SIZE) return;
 
 	// Cancel the timer and reset the expired flag.
-	DBGV("timerStop: stop timer %d\n", index);
+	DBGV("timerStop: stop timer %d\n", (int)index);
   	//sys_timer_stop(&ptpdTimers[index]);
 	PTP_TIMER_STOP(ptpdTimers[index]);
 
@@ -58,7 +58,7 @@ void timerStart(int32_t index, uint32_t interval_ms)
 	if (index >= TIMER_ARRAY_SIZE) return;
 
 	// Set the timer duration and start the timer.
-	DBGV("timerStart: set timer %d to %d\n", index, interval_ms);
+	DBGV("timerStart: set timer %d to %d\n", (int)index, (int)interval_ms);
 	ptpdTimersExpired[index] = FALSE;
   	//sys_timer_start(&ptpdTimers[index], interval_ms);
 	PTP_TIMER_START(ptpdTimers[index],interval_ms);
@@ -71,7 +71,7 @@ bool timerExpired(int32_t index)
 
 	/* Determine if the timer expired. */
 	if (!ptpdTimersExpired[index]) return FALSE;
-	DBGV("timerExpired: timer %d expired\n", index);
+	DBGV("timerExpired: timer %d expired\n", (int)index);
 	ptpdTimersExpired[index] = FALSE;
 
 	return TRUE;
