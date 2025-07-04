@@ -186,6 +186,13 @@ void HAL_ETH_RxCpltCallback(ETH_HandleTypeDef *heth)
   osSemaphoreRelease(s_xSemaphore);
 }
 
+static uint32_t subsecond_to_nanosecond(uint32_t SubSecondValue)
+{
+  uint64_t val = SubSecondValue * 1000000000ll;
+  val >>= 31;
+  return val;
+}
+
 /*******************************************************************************
                        LL Driver Interface ( LwIP stack --> ETH)
 *******************************************************************************/
@@ -446,6 +453,50 @@ static struct pbuf * low_level_input(struct netif *netif)
 }
 
 /**
+  * @brief  Checks whether the specified ETHERNET PTP flag is set or not.
+  * @param  flag: specifies the flag to check.
+  *   This parameter can be one of the following values:
+  *     @arg ETH_PTP_FLAG_TSARU : Addend Register Update
+  *     @arg ETH_PTP_FLAG_TSITE : Time Stamp Interrupt Trigger Enable
+  *     @arg ETH_PTP_FLAG_TSSTU : Time Stamp Update
+  *     @arg ETH_PTP_FLAG_TSSTI  : Time Stamp Initialize
+  * @retval The new state of ETHERNET PTP Flag (SET or RESET).
+  */
+static FlagStatus ll_ptp_get_flag(uint32_t flag)
+{
+  FlagStatus bitstatus = RESET;
+
+  if ((EthHandle.Instance->PTPTSCR & flag) != (uint32_t)RESET)
+  {
+    bitstatus = SET;
+  }
+  else
+  {
+    bitstatus = RESET;
+  }
+  return bitstatus;
+}
+
+/**
+  * @brief  Sets the Time Stamp update sign and values.
+  * @param  Sign: specifies the PTP Time update value sign.
+  *   This parameter can be one of the following values:
+  *     @arg ETH_PTP_PositiveTime : positive time value.
+  *     @arg ETH_PTP_NegativeTime : negative time value.
+  * @param  SecondValue: specifies the PTP Time update second value.
+  * @param  SubSecondValue: specifies the PTP Time update sub-second value.
+  *   This parameter is a 31 bit value, bit32 correspond to the sign.
+  * @retval None
+  */
+static void ll_ptp_set_time_stamp_update(uint32_t Sign, uint32_t SecondValue, uint32_t SubSecondValue)
+{
+  /* Set the PTP Time Update High Register */
+  EthHandle.Instance->PTPTSHUR = SecondValue;
+  /* Set the PTP Time Update Low Register with sign */
+  EthHandle.Instance->PTPTSLUR = Sign | SubSecondValue;
+}
+
+/**
   * @brief This function is the ethernetif_input task, it is processed when a packet
   * is ready to be read from the interface. It uses the function low_level_input()
   * that should handle the actual reception of bytes from the network
@@ -540,11 +591,117 @@ void ethernetif_ptp_set_pps_output(uint8_t freq)
 }
 
 
-void ethernetif_ptp_set_time(struct ptptime_t * timestamp){}
-void ethernetif_ptp_get_time(struct ptptime_t * timestamp){}
-void ethernetif_ptp_update_offset(struct ptptime_t * timeoffset){}
-void ethernetif_ptp_adj_freq(int32_t Adj){}
+void ethernetif_ptp_set_time(struct ptptime_t * timestamp)
+{
+    uint32_t Sign;
+	uint32_t SecondValue;
+	uint32_t NanoSecondValue;
+	uint32_t SubSecondValue;
 
+	/* determine sign and correct Second and Nanosecond values */
+	if(timestamp->tv_sec < 0 || (timestamp->tv_sec == 0 && timestamp->tv_nsec < 0))
+	{
+		Sign = ETH_PTP_NegativeTime;
+		SecondValue = -timestamp->tv_sec;
+		NanoSecondValue = -timestamp->tv_nsec;
+	}
+	else
+	{
+		Sign = ETH_PTP_PositiveTime;
+		SecondValue = timestamp->tv_sec;
+		NanoSecondValue = timestamp->tv_nsec;
+	}
+
+	/* convert nanosecond to subseconds */
+	SubSecondValue = subsecond_to_nanosecond(NanoSecondValue);
+	/* Write the offset (positive or negative) in the Time stamp update high and low registers. */
+	ll_ptp_set_time_stamp_update(Sign, SecondValue, SubSecondValue);
+	/* Set Time stamp control register bit 2 (Time stamp init). */
+	EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
+	/* The Time stamp counter starts operation as soon as it is initialized
+	 * with the value written in the Time stamp update register. */
+	while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTI) == SET);
+}
+
+void ethernetif_ptp_get_time(struct ptptime_t * timestamp)
+{
+  timestamp->tv_nsec = subsecond_to_nanosecond(EthHandle.Instance->PTPTSLR);
+  timestamp->tv_sec = EthHandle.Instance->PTPTSHR;
+}
+
+void ethernetif_ptp_update_offset(struct ptptime_t * timeoffset)
+{
+    uint32_t Sign;
+	uint32_t SecondValue;
+	uint32_t NanoSecondValue;
+	uint32_t SubSecondValue;
+	uint32_t addend;
+
+	/* determine sign and correct Second and Nanosecond values */
+	if(timeoffset->tv_sec < 0 || (timeoffset->tv_sec == 0 && timeoffset->tv_nsec < 0))
+	{
+		Sign = ETH_PTP_NegativeTime;
+		SecondValue = -timeoffset->tv_sec;
+		NanoSecondValue = -timeoffset->tv_nsec;
+	}
+	else
+	{
+		Sign = ETH_PTP_PositiveTime;
+		SecondValue = timeoffset->tv_sec;
+		NanoSecondValue = timeoffset->tv_nsec;
+	}
+
+	/* convert nanosecond to subseconds */
+	SubSecondValue = subsecond_to_nanosecond(NanoSecondValue);
+
+	/* read old addend register value*/
+	addend = EthHandle.Instance->PTPTSAR;
+
+	while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTU) == SET);
+	while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTI) == SET);
+
+	/* Write the offset (positive or negative) in the Time stamp update high and low registers. */
+	ll_ptp_set_time_stamp_update(Sign, SecondValue, SubSecondValue);
+
+	/* Set bit 3 (TSSTU) in the Time stamp control register. */
+	EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTU;
+
+	/* The value in the Time stamp update registers is added to or subtracted from the system */
+	/* time when the TSSTU bit is cleared. */
+	while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTU) == SET);
+
+	/* Write back old addend register value. */
+	EthHandle.Instance->PTPTSAR = addend;
+	EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
+}
+
+void ethernetif_ptp_adj_freq(int32_t Adj)
+{
+    uint32_t addend;
+
+	/* calculate the rate by which you want to speed up or slow down the system time
+		 increments */
+
+	/* precise */
+	/*
+	int64_t addend;
+	addend = Adj;
+	addend *= ADJ_FREQ_BASE_ADDEND;
+	addend /= 1000000000-Adj;
+	addend += ADJ_FREQ_BASE_ADDEND;
+	*/
+
+	/* 32bit estimation
+	ADJ_LIMIT = ((1l<<63)/275/ADJ_FREQ_BASE_ADDEND) = 11258181 = 11 258 ppm*/
+	if( Adj > 5120000) Adj = 5120000;
+	if( Adj < -5120000) Adj = -5120000;
+
+	addend = ((((275LL * Adj)>>8) * (ADJ_FREQ_BASE_ADDEND >> 24)) >> 6) + ADJ_FREQ_BASE_ADDEND;
+
+	/* Reprogram the Time stamp addend register with new Rate value and set ETH_TPTSCR */
+	EthHandle.Instance->PTPTSAR = addend;
+	EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
+}
 
 /**
   * @brief  Returns the current time in milliseconds
