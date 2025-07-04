@@ -454,7 +454,7 @@ static struct pbuf * low_level_input(struct netif *netif)
   *
   * @param netif the lwip network interface structure for this ethernetif
   */
-void ethernetif_input( void const * argument )
+static void ethernetif_input( void const * argument )
 {
   struct pbuf *p;
   struct netif *netif = (struct netif *) argument;
@@ -516,6 +516,30 @@ err_t ethernetif_init(struct netif *netif)
 }
 
 /**
+ * @brief
+ * 0000: 1 Hz with a pulse width of 125 ms for binary rollover and, of 100 ms for digital rollover
+ * 0001: 2 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ * 0010: 4 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ * 0011: 8 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ * 0100: 16 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ * ....
+ * 1111: 32768 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ */
+void ethernetif_pps_output(uint8_t freq)
+{
+    GPIO_InitTypeDef gpio_init;
+
+    ETH->PTPPPSCR = freq & 0x0f;
+
+    gpio_init.Pin = GPIO_PIN_5;  //LL_GPIO_PIN_8
+    gpio_init.Mode = GPIO_MODE_AF_PP;
+    gpio_init.Pull = GPIO_NOPULL;
+    gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+    gpio_init.Alternate = GPIO_AF11_ETH;
+    HAL_GPIO_Init(GPIOB, &gpio_init); //GPIOG
+}
+
+/**
   * @brief  Returns the current time in milliseconds
   *         when LWIP_TIMERS == 1 and NO_SYS == 1
   * @param  None
@@ -531,7 +555,7 @@ u32_t sys_now(void)
   * @param  argument
   * @retval None
   */
-void RMII_Thread( void const * argument )
+static void RMII_Thread( void const * argument )
 {
   (void) argument;
 

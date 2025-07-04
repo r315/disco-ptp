@@ -9,4 +9,5 @@
 /* Exported types ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
 err_t ethernetif_init(struct netif *netif);
+void ethernetif_pps_output(uint8_t freq);
 #endif
