@@ -19,8 +19,8 @@ static struct netif gnetif; /* network interface structure */
 #include "cli_simple.h"
 
 static int serial_available(void){ return UART_Available(); }
-static int serial_read(char *buf, int len){ return UART_Read(buf, len); }
-static int serial_write(const char *buf, int len){ return UART_Write(buf, len); }
+static int serial_read(char *buf, int len){ return UART_Read((uint8_t*)buf, len); }
+static int serial_write(const char *buf, int len){ return UART_Write((const uint8_t*)buf, len); }
 
 static const stdinout_t serial = {
     .available = serial_available,

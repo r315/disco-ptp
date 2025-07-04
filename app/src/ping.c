@@ -10,6 +10,7 @@
 #include "lwip/timeouts.h"
 #include "ping.h"
 
+#define ENABLE_SW_CKSUM  0 /* set if HW does not support it */
 
 static int ping_result = -1;
 static u16_t ping_seq_num = 1;
@@ -33,6 +34,7 @@ static u8_t ping_recv(void *arg, struct raw_pcb *pcb, struct pbuf *p, const ip_a
     return 1; // We've handled the packet
 }
 
+#if ENABLE_SW_CKSUM
 static u16_t ping_checksum(void *data, int len)
 {
     u32_t sum = 0;
@@ -48,6 +50,7 @@ static u16_t ping_checksum(void *data, int len)
 
     return (u16_t)~sum;
 }
+#endif
 
 static void ping_send(struct raw_pcb *pcb, const ip_addr_t *addr, u16_t seq_num)
 {
@@ -77,9 +80,9 @@ static void ping_send(struct raw_pcb *pcb, const ip_addr_t *addr, u16_t seq_num)
     for (pdata = (uint8_t*)iecho, i = sizeof(struct icmp_echo_hdr); i < len; i++) {
         pdata[i] = i;
     }
-
-    //iecho->chksum = ping_checksum(iecho, len);
-
+#if ENABLE_SW_CKSUM
+    iecho->chksum = ping_checksum(iecho, len);
+#endif
     raw_sendto(pcb, p, addr);
 
     pbuf_free(p);

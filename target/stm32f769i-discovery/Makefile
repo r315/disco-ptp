@@ -10,8 +10,8 @@ RELEASE =no
 FEATURES += ENABLE_UART
 FEATURES += ENABLE_UART_CMSIS_OS
 FEATURES += ENABLE_CLI
-#FEATURES += ENABLE_DHCP
-FEATURES += ENABLE_DHCP_SERVER
+FEATURES += ENABLE_DHCP
+#FEATURES += ENABLE_DHCP_SERVER
 
 
 #######################################
@@ -138,7 +138,7 @@ DEBUG =DEBUG=0
 GIT_TAG :=$(shell git describe --abbrev=0 --tags 2>/dev/null || true)
 VERSION :=VERSION=\"$(GIT_TAG)\"
 else
-OPT   =-Og -g -gdwarf-2
+OPT   =-O0 -g -gdwarf-2 -Wall
 DEBUG =DEBUG=1
 endif
 
@@ -179,7 +179,7 @@ endif
 # Generate dependency information
 #CFLAGS += -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst))
 #
-ASFLAGS  =$(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
+ASFLAGS  =$(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -fdata-sections -ffunction-sections
 
 CFLAGS   =$(MCU) $(OPT) $(addprefix -D, $(C_DEFS)) $(addprefix -I, $(C_INCLUDES)) -std=gnu11 -fdata-sections -ffunction-sections
 #-fstack-usage

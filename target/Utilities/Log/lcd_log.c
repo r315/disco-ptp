@@ -70,10 +70,24 @@
 /** @defgroup LCD_LOG_Private_Types
 * @{
 */
+typedef struct _lcd_state {
+    LCD_LOG_line CacheBuffer [LCD_CACHE_DEPTH];
+    uint32_t LineColor;
+    uint16_t ScrollBackStep;
+    uint16_t CacheBuffer_xptr;
+    uint16_t CacheBuffer_yptr_top;
+    uint16_t CacheBuffer_yptr_bottom;
+    uint16_t CacheBuffer_yptr_top_bak;
+    uint16_t CacheBuffer_yptr_bottom_bak;
+    FunctionalState CacheBuffer_yptr_invert;
+    FunctionalState ScrollActive;
+    FunctionalState Lock;
+    FunctionalState Scrolled;
+    uint8_t esc_seq;
+}lcd_state_t;
 /**
 * @}
 */
-
 
 /** @defgroup LCD_LOG_Private_Defines
 * @{
@@ -98,20 +112,7 @@
 * @{
 */
 
-LCD_LOG_line LCD_CacheBuffer [LCD_CACHE_DEPTH];
-uint32_t LCD_LineColor;
-uint16_t LCD_CacheBuffer_xptr;
-uint16_t LCD_CacheBuffer_yptr_top;
-uint16_t LCD_CacheBuffer_yptr_bottom;
-
-uint16_t LCD_CacheBuffer_yptr_top_bak;
-uint16_t LCD_CacheBuffer_yptr_bottom_bak;
-
-FunctionalState LCD_CacheBuffer_yptr_invert;
-FunctionalState LCD_ScrollActive;
-FunctionalState LCD_Lock;
-FunctionalState LCD_Scrolled;
-uint16_t LCD_ScrollBackStep;
+static lcd_state_t lcd_state;
 
 /**
 * @}
@@ -145,6 +146,10 @@ void LCD_LOG_Init ( void)
 
   /* Clear the LCD */
   BSP_LCD_Clear(LCD_LOG_BACKGROUND_COLOR);
+
+  //memset(&lcd_state, 0, sizeof(lcd_state));
+  lcd_state.LineColor = LCD_LOG_DEFAULT_COLOR;
+  lcd_state.CacheBuffer_yptr_invert= ENABLE;
 }
 
 /**
@@ -154,19 +159,19 @@ void LCD_LOG_Init ( void)
   */
 void LCD_LOG_DeInit(void)
 {
-  LCD_LineColor = LCD_LOG_TEXT_COLOR;
-  LCD_CacheBuffer_xptr = 0;
-  LCD_CacheBuffer_yptr_top = 0;
-  LCD_CacheBuffer_yptr_bottom = 0;
+  lcd_state.LineColor = LCD_LOG_TEXT_COLOR;
+  lcd_state.CacheBuffer_xptr = 0;
+  lcd_state.CacheBuffer_yptr_top = 0;
+  lcd_state.CacheBuffer_yptr_bottom = 0;
 
-  LCD_CacheBuffer_yptr_top_bak = 0;
-  LCD_CacheBuffer_yptr_bottom_bak = 0;
+  lcd_state.CacheBuffer_yptr_top_bak = 0;
+  lcd_state.CacheBuffer_yptr_bottom_bak = 0;
 
-  LCD_CacheBuffer_yptr_invert= ENABLE;
-  LCD_ScrollActive = DISABLE;
-  LCD_Lock = DISABLE;
-  LCD_Scrolled = DISABLE;
-  LCD_ScrollBackStep = 0;
+  lcd_state.CacheBuffer_yptr_invert= ENABLE;
+  lcd_state.ScrollActive = DISABLE;
+  lcd_state.Lock = DISABLE;
+  lcd_state.Scrolled = DISABLE;
+  lcd_state.ScrollBackStep = 0;
 }
 
 /**
@@ -236,6 +241,9 @@ void LCD_LOG_ClearTextZone(void)
 
 /**
   * @brief  Redirect the printf to the LCD
+  * TODO: Fix color, as each line has a color defined by LCD_LOG_line type,
+  * having multiple text colors per line makes things more difficult
+  *
   * @param  c: character to be displayed
   * @param  f: output file pointer
   * @retval None
@@ -245,65 +253,132 @@ int LCD_LOG_Putchar(int ch)
 
   sFONT *cFont = BSP_LCD_GetFont();
   uint32_t idx;
+volatile char dbg = (char)ch;
 
-  if(LCD_Lock == DISABLE)
+  if(lcd_state.esc_seq == 0){
+    if(ch == '\e'){
+        lcd_state.esc_seq++;
+        return ch; // enter in escape sequence
+    }
+  }else if(lcd_state.esc_seq == 1){
+    if(ch == '['){
+        lcd_state.esc_seq++;
+        return ch; // continue escape sequence
+    }
+    lcd_state.esc_seq = 0;
+  }else if(lcd_state.esc_seq == 2){
+    switch(ch){
+        case '0':
+            lcd_state.LineColor = LCD_LOG_DEFAULT_COLOR;
+        case '1':
+        case '2':
+        case '3':
+        default: break;
+    }
+    lcd_state.esc_seq++;
+    return ch;
+  }else if(lcd_state.esc_seq == 3){
+    switch(ch){
+        case 'm':
+        case 'J':
+            lcd_state.esc_seq = 0;
+            return ch; // end of seq
+        case '1':
+            lcd_state.LineColor = LCD_COLOR_RED;
+            break;
+        case '2':
+            lcd_state.LineColor = LCD_COLOR_GREEN;
+            break;
+        case '3':
+            lcd_state.LineColor = LCD_COLOR_YELLOW;
+            break;
+        case '4':
+            lcd_state.LineColor = LCD_COLOR_BLUE;
+            break;
+        case '5':
+            lcd_state.LineColor = LCD_COLOR_MAGENTA;
+            break;
+        case '6':
+            lcd_state.LineColor = LCD_COLOR_CYAN;
+            break;
+        default:
+            break;
+    }
+    lcd_state.esc_seq++;
+    return ch;
+  }else if(lcd_state.esc_seq == 4){
+    lcd_state.esc_seq = 0;
+    return ch; // end seq
+  }
+
+  if(lcd_state.Lock == DISABLE)
   {
-    if(LCD_ScrollActive == ENABLE)
+    if(lcd_state.ScrollActive == ENABLE)
     {
-      LCD_CacheBuffer_yptr_bottom = LCD_CacheBuffer_yptr_bottom_bak;
-      LCD_CacheBuffer_yptr_top    = LCD_CacheBuffer_yptr_top_bak;
-      LCD_ScrollActive = DISABLE;
-      LCD_Scrolled = DISABLE;
-      LCD_ScrollBackStep = 0;
+      lcd_state.CacheBuffer_yptr_bottom = lcd_state.CacheBuffer_yptr_bottom_bak;
+      lcd_state.CacheBuffer_yptr_top    = lcd_state.CacheBuffer_yptr_top_bak;
+      lcd_state.ScrollActive = DISABLE;
+      lcd_state.Scrolled = DISABLE;
+      lcd_state.ScrollBackStep = 0;
 
     }
 
-    if(( LCD_CacheBuffer_xptr < (BSP_LCD_GetXSize()) /cFont->Width ) &&  ( ch != '\n'))
+    if(( lcd_state.CacheBuffer_xptr < (BSP_LCD_GetXSize()) /cFont->Width ) &&  ( ch != '\n') && ( ch != '\r'))
     {
-      LCD_CacheBuffer[LCD_CacheBuffer_yptr_bottom].line[LCD_CacheBuffer_xptr++] = (uint16_t)ch;
+      // Generic char within line
+      lcd_state.CacheBuffer[lcd_state.CacheBuffer_yptr_bottom].line[lcd_state.CacheBuffer_xptr++] = (uint8_t)ch;
     }
     else
     {
-      if(LCD_CacheBuffer_yptr_top >= LCD_CacheBuffer_yptr_bottom)
+      // new line or character is out of line end
+      if(lcd_state.CacheBuffer_yptr_top >= lcd_state.CacheBuffer_yptr_bottom)
       {
 
-        if(LCD_CacheBuffer_yptr_invert == DISABLE)
+        if(lcd_state.CacheBuffer_yptr_invert == DISABLE)
         {
-          LCD_CacheBuffer_yptr_top++;
+          lcd_state.CacheBuffer_yptr_top++;
 
-          if(LCD_CacheBuffer_yptr_top == LCD_CACHE_DEPTH)
+          if(lcd_state.CacheBuffer_yptr_top == LCD_CACHE_DEPTH)
           {
-            LCD_CacheBuffer_yptr_top = 0;
+            lcd_state.CacheBuffer_yptr_top = 0;
           }
         }
         else
         {
-          LCD_CacheBuffer_yptr_invert= DISABLE;
+          lcd_state.CacheBuffer_yptr_invert= DISABLE;
         }
       }
 
-      for(idx = LCD_CacheBuffer_xptr ; idx < (BSP_LCD_GetXSize()) /cFont->Width; idx++)
-      {
-        LCD_CacheBuffer[LCD_CacheBuffer_yptr_bottom].line[LCD_CacheBuffer_xptr++] = ' ';
+      // Cartridge return
+      if( ch == '\r'){
+        lcd_state.CacheBuffer_xptr = 0;
+        return ch;
       }
-      LCD_CacheBuffer[LCD_CacheBuffer_yptr_bottom].color = LCD_LineColor;
 
-      LCD_CacheBuffer_xptr = 0;
-
-      LCD_LOG_UpdateDisplay ();
-
-      LCD_CacheBuffer_yptr_bottom ++;
-
-      if (LCD_CacheBuffer_yptr_bottom == LCD_CACHE_DEPTH)
+      // Erases line or remaining characters after
+      for(idx = lcd_state.CacheBuffer_xptr ; idx < (BSP_LCD_GetXSize()) /cFont->Width; idx++)
       {
-        LCD_CacheBuffer_yptr_bottom = 0;
-        LCD_CacheBuffer_yptr_top = 1;
-        LCD_CacheBuffer_yptr_invert = ENABLE;
+        lcd_state.CacheBuffer[lcd_state.CacheBuffer_yptr_bottom].line[lcd_state.CacheBuffer_xptr++] = ' ';
+      }
+      // Continue with same color to next line
+      lcd_state.CacheBuffer[lcd_state.CacheBuffer_yptr_bottom].color = lcd_state.LineColor;
+      // Resets to first character
+      lcd_state.CacheBuffer_xptr = 0;
+      // Update line
+      LCD_LOG_UpdateDisplay ();
+      // Advance line index
+      lcd_state.CacheBuffer_yptr_bottom ++;
+
+      if (lcd_state.CacheBuffer_yptr_bottom == LCD_CACHE_DEPTH)
+      {
+        lcd_state.CacheBuffer_yptr_bottom = 0;
+        lcd_state.CacheBuffer_yptr_top = 1;
+        lcd_state.CacheBuffer_yptr_invert = ENABLE;
       }
 
       if( ch != '\n')
       {
-        LCD_CacheBuffer[LCD_CacheBuffer_yptr_bottom].line[LCD_CacheBuffer_xptr++] = (uint16_t)ch;
+        lcd_state.CacheBuffer[lcd_state.CacheBuffer_yptr_bottom].line[lcd_state.CacheBuffer_xptr++] = (uint8_t)ch;
       }
 
     }
@@ -322,24 +397,24 @@ void LCD_LOG_UpdateDisplay (void)
   uint16_t length = 0 ;
   uint16_t ptr = 0, index = 0;
 
-  if((LCD_CacheBuffer_yptr_bottom  < (YWINDOW_SIZE -1)) &&
-     (LCD_CacheBuffer_yptr_bottom  >= LCD_CacheBuffer_yptr_top))
+  if((lcd_state.CacheBuffer_yptr_bottom  < (YWINDOW_SIZE -1)) &&
+     (lcd_state.CacheBuffer_yptr_bottom  >= lcd_state.CacheBuffer_yptr_top))
   {
-    BSP_LCD_SetTextColor(LCD_CacheBuffer[cnt + LCD_CacheBuffer_yptr_bottom].color);
-    BSP_LCD_DisplayStringAtLine ((YWINDOW_MIN + LCD_CacheBuffer_yptr_bottom),
-                           (uint8_t *)(LCD_CacheBuffer[cnt + LCD_CacheBuffer_yptr_bottom].line));
+    BSP_LCD_SetTextColor(lcd_state.CacheBuffer[cnt + lcd_state.CacheBuffer_yptr_bottom].color);
+    BSP_LCD_DisplayStringAtLine ((YWINDOW_MIN + lcd_state.CacheBuffer_yptr_bottom),
+                           (uint8_t *)(lcd_state.CacheBuffer[cnt + lcd_state.CacheBuffer_yptr_bottom].line));
   }
   else
   {
 
-    if(LCD_CacheBuffer_yptr_bottom < LCD_CacheBuffer_yptr_top)
+    if(lcd_state.CacheBuffer_yptr_bottom < lcd_state.CacheBuffer_yptr_top)
     {
       /* Virtual length for rolling */
-      length = LCD_CACHE_DEPTH + LCD_CacheBuffer_yptr_bottom ;
+      length = LCD_CACHE_DEPTH + lcd_state.CacheBuffer_yptr_bottom ;
     }
     else
     {
-      length = LCD_CacheBuffer_yptr_bottom;
+      length = lcd_state.CacheBuffer_yptr_bottom;
     }
 
     ptr = length - YWINDOW_SIZE + 1;
@@ -349,9 +424,9 @@ void LCD_LOG_UpdateDisplay (void)
 
       index = (cnt + ptr )% LCD_CACHE_DEPTH ;
 
-      BSP_LCD_SetTextColor(LCD_CacheBuffer[index].color);
+      BSP_LCD_SetTextColor(lcd_state.CacheBuffer[index].color);
       BSP_LCD_DisplayStringAtLine ((cnt + YWINDOW_MIN),
-                             (uint8_t *)(LCD_CacheBuffer[index].line));
+                             (uint8_t *)(lcd_state.CacheBuffer[index].line));
 
     }
   }
@@ -367,66 +442,66 @@ void LCD_LOG_UpdateDisplay (void)
 ErrorStatus LCD_LOG_ScrollBack(void)
 {
 
-  if(LCD_ScrollActive == DISABLE)
+  if(lcd_state.ScrollActive == DISABLE)
   {
 
-    LCD_CacheBuffer_yptr_bottom_bak = LCD_CacheBuffer_yptr_bottom;
-    LCD_CacheBuffer_yptr_top_bak    = LCD_CacheBuffer_yptr_top;
+    lcd_state.CacheBuffer_yptr_bottom_bak = lcd_state.CacheBuffer_yptr_bottom;
+    lcd_state.CacheBuffer_yptr_top_bak    = lcd_state.CacheBuffer_yptr_top;
 
 
-    if(LCD_CacheBuffer_yptr_bottom > LCD_CacheBuffer_yptr_top)
+    if(lcd_state.CacheBuffer_yptr_bottom > lcd_state.CacheBuffer_yptr_top)
     {
 
-      if ((LCD_CacheBuffer_yptr_bottom - LCD_CacheBuffer_yptr_top) <=  YWINDOW_SIZE)
+      if ((lcd_state.CacheBuffer_yptr_bottom - lcd_state.CacheBuffer_yptr_top) <=  YWINDOW_SIZE)
       {
-        LCD_Lock = DISABLE;
+        lcd_state.Lock = DISABLE;
         return ERROR;
       }
     }
-    LCD_ScrollActive = ENABLE;
+    lcd_state.ScrollActive = ENABLE;
 
-    if((LCD_CacheBuffer_yptr_bottom  > LCD_CacheBuffer_yptr_top)&&
-       (LCD_Scrolled == DISABLE ))
+    if((lcd_state.CacheBuffer_yptr_bottom  > lcd_state.CacheBuffer_yptr_top)&&
+       (lcd_state.Scrolled == DISABLE ))
     {
-      LCD_CacheBuffer_yptr_bottom--;
-      LCD_Scrolled = ENABLE;
+      lcd_state.CacheBuffer_yptr_bottom--;
+      lcd_state.Scrolled = ENABLE;
     }
 
   }
 
-  if(LCD_ScrollActive == ENABLE)
+  if(lcd_state.ScrollActive == ENABLE)
   {
-    LCD_Lock = ENABLE;
+    lcd_state.Lock = ENABLE;
 
-    if(LCD_CacheBuffer_yptr_bottom > LCD_CacheBuffer_yptr_top)
+    if(lcd_state.CacheBuffer_yptr_bottom > lcd_state.CacheBuffer_yptr_top)
     {
 
-      if((LCD_CacheBuffer_yptr_bottom  - LCD_CacheBuffer_yptr_top) <  YWINDOW_SIZE )
+      if((lcd_state.CacheBuffer_yptr_bottom  - lcd_state.CacheBuffer_yptr_top) <  YWINDOW_SIZE )
       {
-        LCD_Lock = DISABLE;
+        lcd_state.Lock = DISABLE;
         return ERROR;
       }
 
-      LCD_CacheBuffer_yptr_bottom --;
+      lcd_state.CacheBuffer_yptr_bottom --;
     }
-    else if(LCD_CacheBuffer_yptr_bottom <= LCD_CacheBuffer_yptr_top)
+    else if(lcd_state.CacheBuffer_yptr_bottom <= lcd_state.CacheBuffer_yptr_top)
     {
 
-      if((LCD_CACHE_DEPTH  - LCD_CacheBuffer_yptr_top + LCD_CacheBuffer_yptr_bottom) < YWINDOW_SIZE)
+      if((LCD_CACHE_DEPTH  - lcd_state.CacheBuffer_yptr_top + lcd_state.CacheBuffer_yptr_bottom) < YWINDOW_SIZE)
       {
-        LCD_Lock = DISABLE;
+        lcd_state.Lock = DISABLE;
         return ERROR;
       }
-      LCD_CacheBuffer_yptr_bottom --;
+      lcd_state.CacheBuffer_yptr_bottom --;
 
-      if(LCD_CacheBuffer_yptr_bottom == 0xFFFF)
+      if(lcd_state.CacheBuffer_yptr_bottom == 0xFFFF)
       {
-        LCD_CacheBuffer_yptr_bottom = LCD_CACHE_DEPTH - 2;
+        lcd_state.CacheBuffer_yptr_bottom = LCD_CACHE_DEPTH - 2;
       }
     }
-    LCD_ScrollBackStep++;
+    lcd_state.ScrollBackStep++;
     LCD_LOG_UpdateDisplay();
-    LCD_Lock = DISABLE;
+    lcd_state.Lock = DISABLE;
   }
   return SUCCESS;
 }
@@ -439,53 +514,53 @@ ErrorStatus LCD_LOG_ScrollBack(void)
 ErrorStatus LCD_LOG_ScrollForward(void)
 {
 
-  if(LCD_ScrollBackStep != 0)
+  if(lcd_state.ScrollBackStep != 0)
   {
-    if(LCD_ScrollActive == DISABLE)
+    if(lcd_state.ScrollActive == DISABLE)
     {
 
-      LCD_CacheBuffer_yptr_bottom_bak = LCD_CacheBuffer_yptr_bottom;
-      LCD_CacheBuffer_yptr_top_bak    = LCD_CacheBuffer_yptr_top;
+      lcd_state.CacheBuffer_yptr_bottom_bak = lcd_state.CacheBuffer_yptr_bottom;
+      lcd_state.CacheBuffer_yptr_top_bak    = lcd_state.CacheBuffer_yptr_top;
 
-      if(LCD_CacheBuffer_yptr_bottom > LCD_CacheBuffer_yptr_top)
+      if(lcd_state.CacheBuffer_yptr_bottom > lcd_state.CacheBuffer_yptr_top)
       {
 
-        if ((LCD_CacheBuffer_yptr_bottom - LCD_CacheBuffer_yptr_top) <=  YWINDOW_SIZE)
+        if ((lcd_state.CacheBuffer_yptr_bottom - lcd_state.CacheBuffer_yptr_top) <=  YWINDOW_SIZE)
         {
-          LCD_Lock = DISABLE;
+          lcd_state.Lock = DISABLE;
           return ERROR;
         }
       }
-      LCD_ScrollActive = ENABLE;
+      lcd_state.ScrollActive = ENABLE;
 
-      if((LCD_CacheBuffer_yptr_bottom  > LCD_CacheBuffer_yptr_top)&&
-         (LCD_Scrolled == DISABLE ))
+      if((lcd_state.CacheBuffer_yptr_bottom  > lcd_state.CacheBuffer_yptr_top)&&
+         (lcd_state.Scrolled == DISABLE ))
       {
-        LCD_CacheBuffer_yptr_bottom--;
-        LCD_Scrolled = ENABLE;
+        lcd_state.CacheBuffer_yptr_bottom--;
+        lcd_state.Scrolled = ENABLE;
       }
 
     }
 
-    if(LCD_ScrollActive == ENABLE)
+    if(lcd_state.ScrollActive == ENABLE)
     {
-      LCD_Lock = ENABLE;
-      LCD_ScrollBackStep--;
+      lcd_state.Lock = ENABLE;
+      lcd_state.ScrollBackStep--;
 
-      if(++LCD_CacheBuffer_yptr_bottom == LCD_CACHE_DEPTH)
+      if(++lcd_state.CacheBuffer_yptr_bottom == LCD_CACHE_DEPTH)
       {
-        LCD_CacheBuffer_yptr_bottom = 0;
+        lcd_state.CacheBuffer_yptr_bottom = 0;
       }
 
       LCD_LOG_UpdateDisplay();
-      LCD_Lock = DISABLE;
+      lcd_state.Lock = DISABLE;
 
     }
     return SUCCESS;
   }
   else // LCD_ScrollBackStep == 0
   {
-    LCD_Lock = DISABLE;
+    lcd_state.Lock = DISABLE;
     return ERROR;
   }
 }
