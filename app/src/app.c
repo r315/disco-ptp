@@ -102,10 +102,14 @@ static int cmdPtpd(int argc, char **argv)
         ptpTaskHandle = ptpd_init();
     }
 
+    if(CLI_IS_PARM(1, "stop")){
+        osThreadTerminate(ptpTaskHandle);
+    }
+
     if(CLI_IS_PARM(1, "status")){
         //UBaseType_t restStack ;
         //restStack = uxTaskGetStackHighWaterMark(ptpTaskHandle);
-	    //printf("PTP task rest stack:%lu byte\n",restStack*4);
+        //printf("PTP task rest stack:%lu byte\n",restStack*4);
     }
 
     return CLI_OK;
