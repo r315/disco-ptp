@@ -4,6 +4,7 @@
 /** \name Debug messages */
 /**\{*/
 #define PTPD_DBGV
+
 #ifdef PTPD_DBGVV
 #define PTPD_DBGV
 #define PTPD_DBG

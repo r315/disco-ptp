@@ -14,8 +14,6 @@ ForeignMasterRecord ptpForeignRecords[DEFAULT_MAX_FOREIGN_RECORDS];
 
 __IO uint32_t PTPTimer = 0;
 
-void issueSync_test(PtpClock *ptpClock);
-
 static void ptpd_thread(void const *arg)
 {
 	// Initialize run-time options to default values.
@@ -47,7 +45,7 @@ static void ptpd_thread(void const *arg)
 		printf("PTPD: startup failed");
 		return;
 	}
-	
+
 	printf("PTP thread ready.\n");
 
 #ifdef USE_DHCP

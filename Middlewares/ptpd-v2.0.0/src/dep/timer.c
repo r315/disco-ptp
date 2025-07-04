@@ -5,7 +5,7 @@
 /* An array to hold the various system timer handles. */
 static PTP_TIMER ptpdTimers[TIMER_ARRAY_SIZE];
 static bool ptpdTimersExpired[TIMER_ARRAY_SIZE];
- 
+
 static void timerCallback(PTP_TIMER timer)
 {
 	int index = (int)PTP_TIMER_GETID(timer);
@@ -34,7 +34,7 @@ void initTimer(void)
 		// Initialize the timer.
 		//sys_timer_new(&ptpdTimers[i], timerCallback, osTimerOnce, (void *) i);
 		ptpdTimers[i] = PTP_TIMER_NEW(timerCallback, osTimerPeriodic, (void *) i);
-		printf("PTP Timer: %x \tID: %x\n",ptpdTimers[i],PTP_TIMER_GETID(ptpdTimers[i]));
+		printf("PTP Timer: %x \tID: %x\n", (unsigned int)ptpdTimers[i], (unsigned int)PTP_TIMER_GETID(ptpdTimers[i]));
 		ptpdTimersExpired[i] = FALSE;
 	}
 }
@@ -48,7 +48,7 @@ void timerStop(int32_t index)
 	DBGV("timerStop: stop timer %d\n", index);
   	//sys_timer_stop(&ptpdTimers[index]);
 	PTP_TIMER_STOP(ptpdTimers[index]);
-	
+
 	ptpdTimersExpired[index] = FALSE;
 }
 
