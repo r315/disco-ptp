@@ -525,7 +525,7 @@ err_t ethernetif_init(struct netif *netif)
  * ....
  * 1111: 32768 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
  */
-void ethernetif_pps_output(uint8_t freq)
+void ethernetif_ptp_set_pps_output(uint8_t freq)
 {
     GPIO_InitTypeDef gpio_init;
 
@@ -538,6 +538,13 @@ void ethernetif_pps_output(uint8_t freq)
     gpio_init.Alternate = GPIO_AF11_ETH;
     HAL_GPIO_Init(GPIOB, &gpio_init); //GPIOG
 }
+
+
+void ethernetif_ptp_set_time(struct ptptime_t * timestamp){}
+void ethernetif_ptp_get_time(struct ptptime_t * timestamp){}
+void ethernetif_ptp_update_offset(struct ptptime_t * timeoffset){}
+void ethernetif_ptp_adj_freq(int32_t Adj){}
+
 
 /**
   * @brief  Returns the current time in milliseconds

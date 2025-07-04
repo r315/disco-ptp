@@ -11,6 +11,7 @@
 #include "lwip/ip_addr.h"
 #include "dhcp_server.h"
 #include "ping.h"
+#include "ptpd.h"
 
 static struct netif gnetif; /* network interface structure */
 
@@ -93,12 +94,30 @@ static int cmdPing(int argc, char **argv)
     return CLI_OK;
 }
 
+static osThreadId ptpTaskHandle;
+
+static int cmdPtpd(int argc, char **argv)
+{
+    if(CLI_IS_PARM(1, "start")){
+        ptpTaskHandle = ptpd_init();
+    }
+
+    if(CLI_IS_PARM(1, "status")){
+        //UBaseType_t restStack ;
+        //restStack = uxTaskGetStackHighWaterMark(ptpTaskHandle);
+	    //printf("PTP task rest stack:%lu byte\n",restStack*4);
+    }
+
+    return CLI_OK;
+}
+
 static const cli_command_t cli_cmds [] = {
     {"help", ((int (*)(int, char**))CLI_Commands)},
     {"reset", cmdReset},
     {"phy", cmdPhy},
 	{"dhcps", cmdDhcps},
 	{"ping", cmdPing},
+    {"ptpd", cmdPtpd},
 };
 
 void CLI_thread(void const *argument)

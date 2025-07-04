@@ -41,9 +41,11 @@ $(APP_PATH)/inc \
 $(APP_PATH)/src \
 $(MIDDLEWARE_PATH)/LwIP/src/include \
 $(MIDDLEWARE_PATH)/LwIP/system \
+$(MIDDLEWARE_PATH)/LwIP/system/arch \
 $(MIDDLEWARE_PATH)/FreeRTOS/Source/include \
 $(MIDDLEWARE_PATH)/FreeRTOS/Source/portable/GCC/ARM_CM7/r0p1 \
 $(MIDDLEWARE_PATH)/cli-simple/ \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src \
 $(UTILITIES_PATH)/Log \
 
 AS_INCLUDES =\
@@ -100,13 +102,24 @@ $(MIDDLEWARE_PATH)/LwIP/src/apps/http/httpd.c \
 $(MIDDLEWARE_PATH)/LwIP/src/netif/ethernet.c \
 $(MIDDLEWARE_PATH)/LwIP/system/OS/sys_arch.c \
 
-CLI_SOURCES =
+PTPD_SOURCES = \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/arith.c \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/bmc.c \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/ptpd.c \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/protocol.c \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/dep/sys_time.c \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/dep/msg.c \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/dep/net.c \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/dep/servo.c \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/dep/startup.c \
+$(MIDDLEWARE_PATH)/ptpd-v2.0.0/src/dep/timer.c \
 
 C_SOURCES = \
 $(DRIVER_SOURCES) \
 $(COMPONENT_SOURCES) \
 $(FREERTOS_SOURCES) \
 $(LWIP_SOURCES) \
+$(PTPD_SOURCES) \
 $(TARGET_PATH)/src/system_stm32f7xx.c \
 $(TARGET_PATH)/src/stm32f7xx_uart.c \
 $(TARGET_PATH)/src/stm32f7xx_hal_timebase_tim.c \
