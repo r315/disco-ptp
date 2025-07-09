@@ -64,11 +64,11 @@ static int cmdPhy(int argc, char **argv)
 static int cmdDhcps(int argc, char **argv)
 {
 	if(!strcmp(argv[1], "start")){
-		//dhcp_server_start();
+		dhcp_server_start();
 	}
 
 	if(!strcmp(argv[1], "stop")){
-		//dhcp_server_stop();
+		dhcp_server_stop();
 	}
     return CLI_OK;
 }
@@ -124,7 +124,7 @@ static const cli_command_t cli_cmds [] = {
     {"ptpd", cmdPtpd},
 };
 
-void CLI_thread(void const *argument)
+static void CLI_thread(void const *argument)
 {
     CLI_Init("ptp>", &serial);
     CLI_RegisterCommand(cli_cmds, sizeof(cli_cmds)/sizeof(cli_command_t));
@@ -212,9 +212,11 @@ void APP_Setup(void)
     /* Notify user about the network interface config */
     User_notification(&gnetif);
 
-#ifdef ENABLE_DHCP_SERVER
     dhcp_server_init(gnetif.ip_addr);
+#ifdef ENABLE_DHCP_SERVER
+    dhcp_server_start();
 #endif
+
 #ifdef ENABLE_DHCP
     /* Start DHCPClient */
     osThreadDef(DHCP, DHCP_thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);

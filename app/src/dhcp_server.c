@@ -6,9 +6,7 @@
 #include "lwip/mem.h"
 #include "lwip/timeouts.h"
 #include "string.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
+#include "cmsis_os.h"
 #include <stdio.h>
 
 #define DHCP_SERVER_PORT 67
@@ -20,12 +18,6 @@
 #define DHCPREQUEST     3
 #define DHCPACK         5
 #define DHCPMAGIC       0x63825363
-
-static struct udp_pcb *dhcp_pcb;
-static SemaphoreHandle_t dhcp_sem;
-static struct pbuf *pending_buf = NULL;
-static ip_addr_t pending_addr;
-static ip_addr_t server_ip_addr;
 
 // Simplified DHCP message
 struct dhcp_payload {
@@ -42,10 +34,21 @@ struct dhcp_payload {
     uint32_t magic;
 };
 
+typedef struct _dhcps {
+    struct udp_pcb *pcb;
+    SemaphoreHandle_t sem;
+    struct pbuf *pending_buf;
+    ip_addr_t pending_addr;
+    ip_addr_t ip_addr;
+    osThreadId threadid;
+}dhcps_t;
+
 struct dhcp_msg {
     struct dhcp_payload payload;
     uint8_t options[36];
 };
+
+static dhcps_t dhcps;
 
 // Function to send OFFER or ACK
 static void send_dhcp_reply(const ip_addr_t *addr, uint32_t xid, uint8_t msg_type, uint8_t *chaddr)
@@ -63,7 +66,7 @@ static void send_dhcp_reply(const ip_addr_t *addr, uint32_t xid, uint8_t msg_typ
     msg.payload.xid = xid;
     msg.payload.ciaddr = 0;
     msg.payload.yiaddr = dst_ip;
-    memcpy(&msg.payload.siaddr, &server_ip_addr, 4);
+    memcpy(&msg.payload.siaddr, &dhcps.ip_addr, 4);
     memcpy(&msg.payload.chaddr, chaddr, 6);
     msg.payload.magic = htonl(DHCPMAGIC);
 
@@ -73,7 +76,7 @@ static void send_dhcp_reply(const ip_addr_t *addr, uint32_t xid, uint8_t msg_typ
     *popt++ = 53; *popt++ = 1; *popt++ = msg_type;
 
     /* Config option(54) */
-    uint8_t *pton = (uint8_t*)&server_ip_addr;
+    uint8_t *pton = (uint8_t*)&dhcps.ip_addr;
     *popt++ = 54;
     *popt++ = 4;
     *popt++ = pton[0];
@@ -111,7 +114,7 @@ static void send_dhcp_reply(const ip_addr_t *addr, uint32_t xid, uint8_t msg_typ
     struct pbuf *reply = pbuf_alloc(PBUF_TRANSPORT, sizeof(msg), PBUF_RAM);
     if (reply) {
         memcpy(reply->payload, &msg, sizeof(msg));
-        udp_sendto(dhcp_pcb, reply, addr, DHCP_CLIENT_PORT);
+        udp_sendto(dhcps.pcb, reply, addr, DHCP_CLIENT_PORT);
         pbuf_free(reply);
     }
 }
@@ -121,20 +124,20 @@ static void dhcp_recv_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p,
                          const ip_addr_t *addr, u16_t port)
 {
     if (p && p->len >= sizeof(struct dhcp_payload)) {
-        pending_buf = p;
-        pending_addr = *addr;
-        xSemaphoreGiveFromISR(dhcp_sem, NULL);
+        dhcps.pending_buf = p;
+        dhcps.pending_addr = *addr;
+        xSemaphoreGiveFromISR(dhcps.sem, NULL);
     } else if (p) {
         pbuf_free(p);
     }
 }
 
 // Public: DHCP server thread (FreeRTOS task)
-static void dhcp_server_thread(void *arg)
+static void dhcp_server_thread(const void *arg)
 {
     while (1) {
-        if (xSemaphoreTake(dhcp_sem, portMAX_DELAY) == pdTRUE && pending_buf) {
-            struct dhcp_msg *msg = (struct dhcp_msg *)pending_buf->payload;
+        if (xSemaphoreTake(dhcps.sem, portMAX_DELAY) == pdTRUE && dhcps.pending_buf) {
+            struct dhcp_msg *msg = (struct dhcp_msg *)dhcps.pending_buf->payload;
 
             uint8_t dhcp_type = 0;
             /* Search for option(53) */
@@ -149,60 +152,77 @@ static void dhcp_server_thread(void *arg)
 
             if (dhcp_type == DHCPDISCOVER) {
                 printf("Received DHCPDISCOVER\n");
-                send_dhcp_reply(&pending_addr, msg->payload.xid, DHCPOFFER, msg->payload.chaddr);
+                send_dhcp_reply(&dhcps.pending_addr, msg->payload.xid, DHCPOFFER, msg->payload.chaddr);
             } else if (dhcp_type == DHCPREQUEST) {
                 printf("Received DHCPREQUEST\n");
-                send_dhcp_reply(&pending_addr, msg->payload.xid, DHCPACK, msg->payload.chaddr);
+                send_dhcp_reply(&dhcps.pending_addr, msg->payload.xid, DHCPACK, msg->payload.chaddr);
             }
 
-            pbuf_free(pending_buf);
-            pending_buf = NULL;
+            pbuf_free(dhcps.pending_buf);
+            dhcps.pending_buf = NULL;
         }
     }
 }
 
 
 // Public: DHCP server initialization
-void dhcp_server_init(ip_addr_t addr)
+osStatus dhcp_server_init(ip_addr_t addr)
 {
-    dhcp_sem = xSemaphoreCreateBinary();
-    if (dhcp_sem == NULL) {
+    dhcps.sem = xSemaphoreCreateBinary();
+    if (dhcps.sem == NULL) {
         printf("Failed to create DHCP semaphore\n");
-        return;
+        return osErrorOS;
     }
 
-    dhcp_pcb = udp_new();
-    if (dhcp_pcb == NULL) {
+    dhcps.pcb = udp_new();
+    if (dhcps.pcb == NULL) {
         printf("Failed to create DHCP PCB\n");
-        vSemaphoreDelete(dhcp_sem);
-        return;
+        vSemaphoreDelete(dhcps.sem);
+        return osErrorOS;
     }
 
-    if (udp_bind(dhcp_pcb, IP_ADDR_ANY, DHCP_SERVER_PORT) != ERR_OK) {
+    if (udp_bind(dhcps.pcb, IP_ADDR_ANY, DHCP_SERVER_PORT) != ERR_OK) {
         printf("Failed to bind DHCP PCB\n");
-        udp_remove(dhcp_pcb);
-        vSemaphoreDelete(dhcp_sem);
-        return;
+        return osErrorOS;
     }
 
-    udp_recv(dhcp_pcb, dhcp_recv_cb, NULL);
-    printf("DHCP Server: Listening on port %d\n", DHCP_SERVER_PORT);
+    udp_recv(dhcps.pcb, dhcp_recv_cb, NULL);
 
-    // Create the FreeRTOS task for the DHCP server thread
-    BaseType_t result = xTaskCreate(
-        dhcp_server_thread,    // Task function
-        "DHCP Server",         // Task name
-        2048,                  // Stack size in words
-        NULL,                  // Task argument
-        tskIDLE_PRIORITY + 2,  // Priority
-        NULL                   // Task handle
-    );
+    dhcps.ip_addr = addr;
 
-    if (result != pdPASS) {
+    return osOK;
+}
+
+osStatus dhcp_server_start(void)
+{
+    osThreadDef(dhcp_server, dhcp_server_thread, osPriorityAboveNormal, 0, configMINIMAL_STACK_SIZE * 2);
+    dhcps.threadid = osThreadCreate(osThread(dhcp_server), NULL);
+
+    if(dhcps.threadid == NULL){
         printf("Failed to create DHCP server task\n");
-        udp_remove(dhcp_pcb);
-        vSemaphoreDelete(dhcp_sem);
+        return osErrorOS;
     }
 
-    server_ip_addr = addr;
+    printf("DHCP Server: Listening on port %d\n", DHCP_SERVER_PORT);
+    return osOK;
+}
+
+void dhcp_server_stop(void)
+{
+    printf("DHCP Server: stopped\n");
+}
+
+void dhcp_server_cleanup(void)
+{
+    osThreadTerminate(dhcps.threadid);
+
+    if(dhcps.pcb){
+        udp_remove(dhcps.pcb);
+        dhcps.pcb = NULL;
+    }
+
+    if(dhcps.sem){
+        vSemaphoreDelete(dhcps.sem);
+        dhcps.sem = NULL;
+    }
 }
