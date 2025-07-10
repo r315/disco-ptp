@@ -45,6 +45,8 @@
 #ifndef __LWIPOPTS_H__
 #define __LWIPOPTS_H__
 
+#include <stdint.h>
+
 /**
  * NO_SYS==1: Provides VERY minimal functionality. Otherwise,
  * use lwIP facilities.
@@ -231,7 +233,11 @@ The STM32F7xx allows computing and verifying the IP, UDP, TCP and ICMP checksums
 #define DEFAULT_THREAD_STACKSIZE        500
 #define TCPIP_THREAD_PRIO               osPriorityHigh
 
+#define SNTP_ENABLED                    1
 
+extern void app_ethernet_set_system_time (uint32_t sec);
+
+#define SNTP_SET_SYSTEM_TIME(time) app_ethernet_set_system_time(time)
 
 #endif /* __LWIPOPTS_H__ */
 

@@ -29,6 +29,32 @@ static const stdinout_t serial = {
     .write = serial_write
 };
 
+static int cmdDate(int argc, char **argv)
+{
+    time_t seconds1970;
+    struct tm now;
+    struct ptptime_t ptptime;
+
+    const char *days[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    const char *months[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
+    // Get the ethernet time values.
+    ethernetif_ptp_get_time(&ptptime);
+
+    // Get the seconds since 1970 (Unix epoch).
+    seconds1970 = (time_t) ptptime.tv_sec;
+
+    // Break the seconds to a time structure.
+    localtime_r(&seconds1970, &now);
+
+    // Format into a string.  We don't use strftime() to reduce stack usage.
+    // return strftime(buffer, buflen, "%a %b %d %H:%M:%S UTC %Y\n", &now);
+    LOG_PRINT("%s %s %02d %02d:%02d:%02d UTC %4d",
+                   days[now.tm_wday], months[now.tm_mon], now.tm_mday,
+                   now.tm_hour, now.tm_min, now.tm_sec, 1900 + now.tm_year);
+    return CLI_OK;
+}
+
 static int cmdReset(int argc, char **argv)
 {
     NVIC_SystemReset();
@@ -55,7 +81,7 @@ static int cmdPhy(int argc, char **argv)
 
     for (uint8_t i = 0; i < sizeof(reg_index); i++){
 	    HAL_ETH_ReadPHYRegister(&EthHandle, reg_index[i], &reg_value);
-	    printf("[%d] %s 0x%08lX\n", reg_index[i], reg_name[i], reg_value);
+	    LOG_PRINT("[%d] %s 0x%08lX", reg_index[i], reg_name[i], reg_value);
     }
 
 	return CLI_OK;
@@ -78,16 +104,16 @@ static int cmdPing(int argc, char **argv)
     ip_addr_t target_addr;
 
     if (argc < 2) {
-        printf("Usage: ping <IP address>\n");
+        LOG_PRINT("Usage: ping <IP address>\n");
         return CLI_OK;
     }
 
     if (!ipaddr_aton(argv[1], &target_addr)) {
-        printf("Invalid IP address: %s\n", argv[1]);
+        LOG_PRINT("Invalid IP address: %s\n", argv[1]);
         return CLI_BAD_PARAM;
     }
 
-    printf("Pinging %s...\n", argv[1]);
+    LOG_PRINT("Pinging %s...\n", argv[1]);
 
     do_ping(&target_addr, 4);
 
@@ -122,6 +148,7 @@ static const cli_command_t cli_cmds [] = {
 	{"dhcps", cmdDhcps},
 	{"ping", cmdPing},
     {"ptpd", cmdPtpd},
+    {"date", cmdDate},
 };
 
 static void CLI_thread(void const *argument)
@@ -146,7 +173,10 @@ int __io_putchar(int ch)
 #ifdef ENABLE_UART
     UART_Write((uint8_t*)&ch, 1);
 #endif
-    return LCD_LOG_Putchar(ch);
+#ifdef ENABLE_LOG_TO_DISPLAY
+    LCD_LOG_Putchar(ch)
+#endif
+    return ch;
 }
 #else
 int fputc(int ch, FILE *f) { return LCD_LOG_Putchar(ch); }

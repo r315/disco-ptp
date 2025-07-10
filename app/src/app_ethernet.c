@@ -48,7 +48,10 @@
 #include "app.h"
 #include "lwip/opt.h"
 #include "lwip/dhcp.h"
+#include "lwip/ip4_addr.h"
 #include "ethernetif.h"
+#include "lwip/apps/sntp.h"
+#include "ptpd.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -61,6 +64,35 @@ volatile uint8_t DHCP_state = DHCP_OFF;
 
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+
+#if SNTP_ENABLED
+
+void app_ethernet_set_system_time (uint32_t sec)
+{
+    TimeInternal ti;
+
+    ti.seconds = sec;
+    ti.nanoseconds = 0;
+
+    setTime(&ti);
+    LOG_INF("System time set!\n\r");
+}
+
+static void app_network_sntp_start (void)
+{
+    const ip4_addr_t sntp_ip =
+            IPADDR4_INIT_BYTES(200, 160, 7, 186);   // SNTP server ip
+
+	if (sntp_enabled() != 1){
+		LOG_INF("Initializing SNTP");
+	    sntp_setoperatingmode(SNTP_OPMODE_POLL);	// Set SNTP operation mode to Polling
+	    sntp_setserver(0, &sntp_ip);				// Set server 0 as the supplied ip address
+	    sntp_init();								// Start STNP process
+	}
+}
+
+#endif
+
 /**
   * @brief  Notify the User about the network interface config status
   * @param  netif: the network interface
@@ -127,6 +159,11 @@ void DHCP_thread(void const * argument)
 
           sprintf((char *)iptxt, "%s", ip4addr_ntoa((const ip4_addr_t *)&netif->ip_addr));
           LOG_INF ("IP address assigned by a DHCP server: %s\n", iptxt);
+        #if SNTP_ENABLED
+          if(!ip4_addr_isany(netif_ip4_addr(netif))){
+            app_network_sntp_start();
+          }
+        #endif
         }
         else
         {
