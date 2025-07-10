@@ -100,6 +100,7 @@ $(wildcard $(MIDDLEWARE_PATH)/LwIP/src/core/ipv4/*.c) \
 $(wildcard $(MIDDLEWARE_PATH)/LwIP/src/api/*.c) \
 $(MIDDLEWARE_PATH)/LwIP/src/apps/http/fs.c \
 $(MIDDLEWARE_PATH)/LwIP/src/apps/http/httpd.c \
+$(MIDDLEWARE_PATH)/LwIP/src/apps/sntp/sntp.c \
 $(MIDDLEWARE_PATH)/LwIP/src/netif/ethernet.c \
 $(MIDDLEWARE_PATH)/LwIP/system/OS/sys_arch.c \
 

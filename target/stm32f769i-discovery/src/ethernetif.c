@@ -101,18 +101,18 @@ __no_init uint8_t Tx_Buff[ETH_TXBUFNB][ETH_TX_BUF_SIZE]; /* Ethernet Transmit Bu
 
 #elif defined ( __GNUC__ ) /*!< GNU Compiler */
 
-ETH_DMADescTypeDef  DMARxDscrTab[ETH_RXBUFNB] __attribute__((section(".RxDecripSection")));/* Ethernet Rx DMA Descriptors */
+ETH_DMADescTypeDef  DMARxDscrTab[ETH_RXBUFNB] __attribute__((section(".RxDescripSection")));/* Ethernet Rx DMA Descriptors */
 
 ETH_DMADescTypeDef  DMATxDscrTab[ETH_TXBUFNB] __attribute__((section(".TxDescripSection")));/* Ethernet Tx DMA Descriptors */
 
-uint8_t Rx_Buff[ETH_RXBUFNB][ETH_RX_BUF_SIZE] __attribute__((section(".RxarraySection"))); /* Ethernet Receive Buffers */
+uint8_t Rx_Buff[ETH_RXBUFNB][ETH_RX_BUF_SIZE] __attribute__((section(".RxBUF"))); /* Ethernet Receive Buffers */
 
-uint8_t Tx_Buff[ETH_TXBUFNB][ETH_TX_BUF_SIZE] __attribute__((section(".TxarraySection"))); /* Ethernet Transmit Buffers */
+uint8_t Tx_Buff[ETH_TXBUFNB][ETH_TX_BUF_SIZE] __attribute__((section(".TxBUF"))); /* Ethernet Transmit Buffers */
 
 #endif
 
 /* Semaphore to signal incoming packets */
-osSemaphoreId s_xSemaphore = NULL;
+static osSemaphoreId s_xSemaphore = NULL;
 
 /* Global Ethernet handle*/
 ETH_HandleTypeDef EthHandle;
@@ -136,6 +136,7 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef *heth)
 
   /* Enable GPIOs clocks */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
 
