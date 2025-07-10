@@ -1287,7 +1287,7 @@ static void issueAnnounce(PtpClock *ptpClock)
 	}
 }
 
-/* Pack and send  on event multicast ip adress a Sync message */
+/* Pack and send  on event multicast ip address a Sync message */
 static void issueSync(PtpClock *ptpClock)
 {
 	Timestamp originTimestamp;

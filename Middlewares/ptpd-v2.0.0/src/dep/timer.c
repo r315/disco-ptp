@@ -34,7 +34,7 @@ void initTimer(void)
 		// Initialize the timer.
 		//sys_timer_new(&ptpdTimers[i], timerCallback, osTimerOnce, (void *) i);
 		ptpdTimers[i] = PTP_TIMER_NEW(timerCallback, osTimerPeriodic, (void *) i);
-		printf("PTP Timer: %x \tID: %x\n", (unsigned int)ptpdTimers[i], (unsigned int)PTP_TIMER_GETID(ptpdTimers[i]));
+		DBGV("PTP Timer: %x \tID: %x\n", (unsigned int)ptpdTimers[i], (unsigned int)PTP_TIMER_GETID(ptpdTimers[i]));
 		ptpdTimersExpired[i] = FALSE;
 	}
 }

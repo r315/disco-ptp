@@ -167,7 +167,7 @@ static void CLI_thread(void const *argument)
     CLI_Init("ptp>", &serial);
     CLI_RegisterCommand(cli_cmds, sizeof(cli_cmds)/sizeof(cli_command_t));
 
-	printf("CPU clock: %luMHz\n", SystemCoreClock/1000000UL);
+	LOG_INF("CPU clock: %luMHz\n", SystemCoreClock/1000000UL);
 
 	CLI_Run((void(*)(void))osThreadYield);
 }

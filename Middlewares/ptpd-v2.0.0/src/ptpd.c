@@ -1,6 +1,7 @@
 /* ptpd.c */
 
 #include "ptpd.h"
+#include "syslog.h"
 
 #define PTPD_THREAD_PRIO    (tskIDLE_PRIORITY + 2)
 
@@ -42,11 +43,11 @@ static void ptpd_thread(void const *arg)
 	// Initialize run time options.
 	if (ptpdStartup(&ptpClock, &rtOpts, ptpForeignRecords) != 0)
 	{
-		printf("PTPD: startup failed");
+		LOG_INF("PTPD: startup failed");
 		return;
 	}
 
-	printf("PTP thread ready.\n");
+	LOG_INF("PTP thread ready.\n");
 
 #ifdef USE_DHCP
 	// If DHCP, wait until the default interface has an IP address.
@@ -89,7 +90,7 @@ osThreadId ptpd_init(void)
 	// Create the alert queue mailbox.
   if (sys_mbox_new(&ptp_alert_queue, 8) != ERR_OK)
 	{
-    printf("PTPD: failed to create ptp_alert_queue mbox");
+    LOG_INF("PTPD: failed to create ptp_alert_queue mbox");
   }
 
 	// Create the PTP daemon thread.
