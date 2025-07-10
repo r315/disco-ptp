@@ -752,17 +752,6 @@ void ethernetif_ptp_adj_freq(int32_t Adj)
 }
 
 /**
-  * @brief  Returns the current time in milliseconds
-  *         when LWIP_TIMERS == 1 and NO_SYS == 1
-  * @param  None
-  * @retval Time
-  */
-u32_t sys_now(void)
-{
-  return HAL_GetTick();
-}
-
-/**
   * @brief  RMII interface watchdog thread
   * @param  argument
   * @retval None

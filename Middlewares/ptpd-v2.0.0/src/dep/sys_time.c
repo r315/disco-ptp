@@ -118,3 +118,14 @@ bool adjFreq(int32_t adj)
 
 	return TRUE;
 }
+
+/**
+  * @brief  Returns the current time in milliseconds
+  *         when LWIP_TIMERS == 1 and NO_SYS == 1
+  * @param  None
+  * @retval Time
+  */
+u32_t sys_now(void)
+{
+  return HAL_GetTick();
+}
