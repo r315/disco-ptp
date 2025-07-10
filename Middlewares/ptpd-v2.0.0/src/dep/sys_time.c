@@ -82,7 +82,7 @@ void setTime(const TimeInternal *time)
 	ts.tv_sec = time->seconds;
 	ts.tv_nsec = time->nanoseconds;
 	ethernetif_ptp_set_time(&ts);
-	DBG("resetting system clock to %d sec %d nsec\n", (int)time->seconds, (int)time->nanoseconds);
+	DBG("Setting system clock to %d sec %d nsec\n", (int)time->seconds, (int)time->nanoseconds);
 }
 
 void updateTime(const TimeInternal *time)
@@ -104,9 +104,9 @@ uint32_t getRand(uint32_t randMax)
 	return rand() % randMax;
 }
 
-bool adjFreq(int32_t adj)
+bool adjTime(int32_t adj)
 {
-	DBGV("adjFreq %d\n", (int)adj);
+	DBGV("adjTime %d\n", (int)adj);
 
 	if (adj > ADJ_FREQ_MAX)
 		adj = ADJ_FREQ_MAX;

@@ -41,7 +41,7 @@ void initClock(PtpClock *ptpClock)
 
 	/* Level clock */
 	if (!ptpClock->servo.noAdjust)
-		adjFreq(0);
+		adjTime(0);
 
 	netEmptyEventQ(&ptpClock->netPath);
 }
@@ -269,7 +269,7 @@ void updateClock(PtpClock *ptpClock)
 			else
 			{
 				adj = ptpClock->currentDS.offsetFromMaster.nanoseconds > 0 ? ADJ_FREQ_MAX : -ADJ_FREQ_MAX;
-				adjFreq(-adj);
+				adjTime(-adj);
 			}
 		}
 	}
@@ -299,7 +299,7 @@ void updateClock(PtpClock *ptpClock)
 		if (!ptpClock->servo.noAdjust)
 		{
 			adj = (int32_t)((float)offsetNorm * (float)ptpClock->servo.ap) + ptpClock->observedDrift;
-			adjFreq(-adj);
+			adjTime(-adj);
 		}
 
 		if (DEFAULT_PARENTS_STATS)

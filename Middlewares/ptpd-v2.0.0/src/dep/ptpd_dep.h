@@ -153,11 +153,11 @@ void ptpdShutdown(PtpClock *);
  * -Manage timing system API */
 /**\{*/
 void displayStats(const PtpClock *ptpClock);
-bool  nanoSleep(const TimeInternal*);
+bool nanoSleep(const TimeInternal*);
 void getTime(TimeInternal*);
 void setTime(const TimeInternal*);
 void updateTime(const TimeInternal*);
-bool  adjFreq(int32_t);
+bool adjTime(int32_t);
 uint32_t getRand(uint32_t);
 /** \}*/
 
