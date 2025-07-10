@@ -124,8 +124,19 @@ static osThreadId ptpTaskHandle;
 
 static int cmdPtpd(int argc, char **argv)
 {
+    if(argc < 2){
+        LOG_PRINT("usage: ptpd <init|start|stop|>");
+    }
+
+    if(CLI_IS_PARM(1, "init")){
+        ethernetif_ptp_init();
+        ethernetif_ptp_set_pps_output(0);
+    }
+
     if(CLI_IS_PARM(1, "start")){
+        ethernetif_ptp_init();
         ptpTaskHandle = ptpd_init();
+        ethernetif_ptp_set_pps_output(0);
     }
 
     if(CLI_IS_PARM(1, "stop")){

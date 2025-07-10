@@ -567,6 +567,53 @@ err_t ethernetif_init(struct netif *netif)
   return ERR_OK;
 }
 
+void ethernetif_ptp_init(void)
+{
+  /* Mask the Time stamp trigger interrupt by setting bit 9 in the MACIMR register. */
+  EthHandle.Instance->MACIMR |= ETH_MAC_IT_TST;
+
+  /* Program Time stamp register bit 0 to enable time stamping. */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSE | ETH_PTPTSSR_TSSIPV4FE | ETH_PTPTSSR_TSSIPV6FE | ETH_PTPTSSR_TSSARFE;
+
+  /* Program the Subsecond increment register based on the PTP clock frequency. */
+  EthHandle.Instance->PTPSSIR = ADJ_FREQ_BASE_INCREMENT; /* to achieve 20 ns accuracy, the value is ~ 43 */
+
+  /* If you are using the Fine correction method, program the Time stamp addend register
+   * and set Time stamp control register bit 5 (addend register update). */
+  EthHandle.Instance->PTPTSAR = ADJ_FREQ_BASE_ADDEND;
+  /* Enable the PTP block update with the Time Stamp Addend register value */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
+
+  /* Poll the Time stamp control register until bit 5 is cleared. */
+  while(ll_ptp_get_flag(ETH_PTP_FLAG_TSARU) == SET);
+
+  /* To select the Fine correction method (if required),
+   * program Time stamp control register  bit 1. */
+  /* Enable the PTP Fine Update method */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSFCU;
+
+  /* Program the Time stamp high update and Time stamp low update registers
+   * with the appropriate time value. */
+  /* Set the PTP Time Update High Register */
+  EthHandle.Instance->PTPTSHUR = 0;
+  EthHandle.Instance->PTPTSLUR = ETH_PTP_PositiveTime | 0;
+
+  /* Set Time stamp control register bit 2 (Time stamp init). */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
+
+  /* The enhanced descriptor format is enabled and the descriptor size is
+   * increased to 32 bytes (8 DWORDS). This is required when time stamping
+   * is activated above. */
+  /* Enable enhanced descriptor structure */
+  EthHandle.Instance->DMABMR |= ETH_DMABMR_EDE;
+
+  /* The Time stamp counter starts operation as soon as it is initialized
+   * with the value written in the Time stamp update register. */
+
+  /* Timestam snapshot enable in master mode */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSSR_TSSMRME;
+}
+
 /**
  * @brief
  * 0000: 1 Hz with a pulse width of 125 ms for binary rollover and, of 100 ms for digital rollover

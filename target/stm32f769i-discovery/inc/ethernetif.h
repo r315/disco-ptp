@@ -45,6 +45,7 @@ struct ptptime_t {
 /* Exported functions ------------------------------------------------------- */
 err_t ethernetif_init(struct netif *netif);
 
+void ethernetif_ptp_init(void);
 void ethernetif_ptp_set_pps_output(uint8_t freq);
 void ethernetif_ptp_set_time(struct ptptime_t * timestamp);
 void ethernetif_ptp_get_time(struct ptptime_t * timestamp);
