@@ -185,4 +185,6 @@ void ptpd_alert(void);
 // Initialize PTP daemon thread.
 osThreadId ptpd_init(void);
 
+void ptpd_stats(void);
+
 #endif /* PTPD_H_*/

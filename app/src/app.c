@@ -125,7 +125,7 @@ static osThreadId ptpTaskHandle;
 static int cmdPtpd(int argc, char **argv)
 {
     if(argc < 2){
-        LOG_PRINT("usage: ptpd <init|start|stop|>");
+        LOG_PRINT("usage: ptpd <init|start|stop|stat>");
     }
 
     if(CLI_IS_PARM(1, "init")){
@@ -149,6 +149,9 @@ static int cmdPtpd(int argc, char **argv)
         //printf("PTP task rest stack:%lu byte\n",restStack*4);
     }
 
+    if(CLI_IS_PARM(1, "stat")){
+        ptpd_stats();
+    }
     return CLI_OK;
 }
 

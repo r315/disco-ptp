@@ -152,7 +152,6 @@ void ptpdShutdown(PtpClock *);
 /** \name sys.c (Linux API dependent)
  * -Manage timing system API */
 /**\{*/
-void displayStats(const PtpClock *ptpClock);
 bool nanoSleep(const TimeInternal*);
 void getTime(TimeInternal*);
 void setTime(const TimeInternal*);
