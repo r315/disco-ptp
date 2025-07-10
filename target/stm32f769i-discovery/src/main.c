@@ -148,6 +148,9 @@ static void BSP_Config(void)
 {
   UART_Init();
 
+  BSP_LED_Init(LED1);
+  BSP_LED_Init(LED2);
+
   /* Initialize the LCD */
   BSP_LCD_Init();
 
