@@ -38,6 +38,7 @@ C_INCLUDES = \
 $(CMSIS_PATH) \
 $(DRIVERS_SOC)/Inc \
 $(TARGET_PATH)/inc \
+$(DRIVERS_PATH)/BSP/Components \
 $(DRIVERS_BSP) \
 $(APP_PATH)/inc \
 $(APP_PATH)/src \
@@ -83,6 +84,7 @@ $(DRIVERS_SOC)/Src/stm32f7xx_ll_fmc.c \
 
 COMPONENT_SOURCES = \
 $(DRIVERS_BSP)/../Components/otm8009a/otm8009a.c \
+$(DRIVERS_BSP)/../Components/lan8742/lan8742.c \
 $(UTILITIES_PATH)/Log/lcd_log.c \
 
 FREERTOS_SOURCES = \

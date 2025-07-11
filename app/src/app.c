@@ -80,7 +80,7 @@ static int cmdPhy(int argc, char **argv)
     };
 
     for (uint8_t i = 0; i < sizeof(reg_index); i++){
-	    HAL_ETH_ReadPHYRegister(&EthHandle, reg_index[i], &reg_value);
+	    HAL_ETH_ReadPHYRegister(&EthHandle, LAN8742A_PHY_ADDRESS, reg_index[i], &reg_value);
 	    LOG_PRINT("[%d] %s 0x%08lX", reg_index[i], reg_name[i], reg_value);
     }
 
