@@ -36,7 +36,7 @@ UTILITIES_PATH  =$(TARGET_PATH)/../Utilities
 #######################################
 C_INCLUDES = \
 $(CMSIS_PATH) \
-$(DRIVERS_SOC)/inc \
+$(DRIVERS_SOC)/Inc \
 $(TARGET_PATH)/inc \
 $(DRIVERS_BSP) \
 $(APP_PATH)/inc \
@@ -60,26 +60,26 @@ $(DRIVERS_BSP)/stm32f769i_discovery.c \
 $(DRIVERS_BSP)/stm32f769i_discovery_lcd.c \
 $(DRIVERS_BSP)/stm32f769i_discovery_sdram.c \
 $(DRIVERS_BSP)/stm32f769i_discovery_ts.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_cortex.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_dma.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_dma2d.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_dsi.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_eth.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_flash.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_gpio.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_i2c.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_ltdc.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_ltdc_ex.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_pwr.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_pwr_ex.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_sdram.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_rcc.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_rcc_ex.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_tim.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_tim_ex.c \
-$(DRIVERS_SOC)/src/stm32f7xx_hal_uart.c \
-$(DRIVERS_SOC)/src/stm32f7xx_ll_fmc.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_cortex.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_dma.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_dma2d.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_dsi.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_eth.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_flash.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_gpio.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_i2c.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_ltdc.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_ltdc_ex.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_pwr.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_pwr_ex.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_sdram.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_rcc.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_rcc_ex.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_tim.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_tim_ex.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_hal_uart.c \
+$(DRIVERS_SOC)/Src/stm32f7xx_ll_fmc.c \
 
 COMPONENT_SOURCES = \
 $(DRIVERS_BSP)/../Components/otm8009a/otm8009a.c \
