@@ -70,6 +70,8 @@ volatile uint8_t DHCP_state = DHCP_OFF;
 void app_ethernet_set_system_time (uint32_t sec)
 {
     TimeInternal ti;
+    /* start ptp counter before setting system time */
+    ethernetif_ptp_init();
 
     ti.seconds = sec;
     ti.nanoseconds = 0;
