@@ -57,7 +57,7 @@
   * @retval LAN8742_STATUS_OK  if OK
   *         LAN8742_STATUS_ERROR if missing mandatory function
   */
-int32_t  LAN8742_RegisterBusIO(lan8742_Object_t *pObj, lan8742_IOCtx_t *ioctx)
+int32_t  LAN8742_RegisterBusIO(lan8742_Object_t *pObj, const lan8742_IOCtx_t *ioctx)
 {
   if(!pObj || !ioctx->ReadReg || !ioctx->WriteReg || !ioctx->GetTick)
   {

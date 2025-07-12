@@ -15,7 +15,7 @@
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
-  */ 
+  */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef LAN8742_H
@@ -23,30 +23,30 @@
 
 #ifdef __cplusplus
  extern "C" {
-#endif   
-   
+#endif
+
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 
 /** @addtogroup BSP
   * @{
-  */ 
+  */
 
 /** @addtogroup Component
   * @{
   */
-    
+
 /** @defgroup LAN8742
   * @{
-  */    
+  */
 /* Exported constants --------------------------------------------------------*/
 /** @defgroup LAN8742_Exported_Constants LAN8742 Exported Constants
   * @{
-  */ 
-  
+  */
+
 /** @defgroup LAN8742_Registers_Mapping LAN8742 Registers Mapping
   * @{
-  */ 
+  */
 #define LAN8742_BCR      ((uint16_t)0x0000U)
 #define LAN8742_BSR      ((uint16_t)0x0001U)
 #define LAN8742_PHYI1R   ((uint16_t)0x0002U)
@@ -75,7 +75,7 @@
 
 /** @defgroup LAN8742_BCR_Bit_Definition LAN8742 BCR Bit Definition
   * @{
-  */    
+  */
 #define LAN8742_BCR_SOFT_RESET         ((uint16_t)0x8000U)
 #define LAN8742_BCR_LOOPBACK           ((uint16_t)0x4000U)
 #define LAN8742_BCR_SPEED_SELECT       ((uint16_t)0x2000U)
@@ -83,14 +83,14 @@
 #define LAN8742_BCR_POWER_DOWN         ((uint16_t)0x0800U)
 #define LAN8742_BCR_ISOLATE            ((uint16_t)0x0400U)
 #define LAN8742_BCR_RESTART_AUTONEGO   ((uint16_t)0x0200U)
-#define LAN8742_BCR_DUPLEX_MODE        ((uint16_t)0x0100U) 
+#define LAN8742_BCR_DUPLEX_MODE        ((uint16_t)0x0100U)
 /**
   * @}
   */
 
 /** @defgroup LAN8742_BSR_Bit_Definition LAN8742 BSR Bit Definition
   * @{
-  */   
+  */
 #define LAN8742_BSR_100BASE_T4       ((uint16_t)0x8000U)
 #define LAN8742_BSR_100BASE_TX_FD    ((uint16_t)0x4000U)
 #define LAN8742_BSR_100BASE_TX_HD    ((uint16_t)0x2000U)
@@ -207,7 +207,7 @@
 /** @defgroup LAN8742_MMDACR_Bit_Definition LAN8742 MMDACR Bit Definition
   * @{
   */
-#define LAN8742_MMDACR_MMD_FUNCTION       ((uint16_t)0xC000U) 
+#define LAN8742_MMDACR_MMD_FUNCTION       ((uint16_t)0xC000U)
 #define LAN8742_MMDACR_MMD_FUNCTION_ADDR  ((uint16_t)0x0000U)
 #define LAN8742_MMDACR_MMD_FUNCTION_DATA  ((uint16_t)0x4000U)
 #define LAN8742_MMDACR_MMD_DEV_ADDR       ((uint16_t)0x001FU)
@@ -325,14 +325,14 @@
 #define LAN8742_PHYSCSR_10BT_HD         ((uint16_t)0x0004U)
 #define LAN8742_PHYSCSR_10BT_FD         ((uint16_t)0x0014U)
 #define LAN8742_PHYSCSR_100BTX_HD       ((uint16_t)0x0008U)
-#define LAN8742_PHYSCSR_100BTX_FD       ((uint16_t)0x0018U) 
+#define LAN8742_PHYSCSR_100BTX_FD       ((uint16_t)0x0018U)
 /**
   * @}
   */
-    
+
 /** @defgroup LAN8742_Status LAN8742 Status
   * @{
-  */    
+  */
 
 #define  LAN8742_STATUS_READ_ERROR            ((int32_t)-5)
 #define  LAN8742_STATUS_WRITE_ERROR           ((int32_t)-4)
@@ -352,7 +352,7 @@
 
 /** @defgroup LAN8742_IT_Flags LAN8742 IT Flags
   * @{
-  */     
+  */
 #define  LAN8742_WOL_IT                        LAN8742_INT_8
 #define  LAN8742_ENERGYON_IT                   LAN8742_INT_7
 #define  LAN8742_AUTONEGO_COMPLETE_IT          LAN8742_INT_6
@@ -369,27 +369,27 @@
   * @}
   */
 
-/* Exported types ------------------------------------------------------------*/ 
+/* Exported types ------------------------------------------------------------*/
 /** @defgroup LAN8742_Exported_Types LAN8742 Exported Types
   * @{
   */
-typedef int32_t  (*lan8742_Init_Func) (void); 
+typedef int32_t  (*lan8742_Init_Func) (void);
 typedef int32_t  (*lan8742_DeInit_Func) (void);
 typedef int32_t  (*lan8742_ReadReg_Func)   (uint32_t, uint32_t, uint32_t *);
 typedef int32_t  (*lan8742_WriteReg_Func)  (uint32_t, uint32_t, uint32_t);
 typedef int32_t  (*lan8742_GetTick_Func)  (void);
 
-typedef struct 
-{                   
-  lan8742_Init_Func      Init; 
+typedef struct
+{
+  lan8742_Init_Func      Init;
   lan8742_DeInit_Func    DeInit;
   lan8742_WriteReg_Func  WriteReg;
-  lan8742_ReadReg_Func   ReadReg; 
-  lan8742_GetTick_Func   GetTick;   
-} lan8742_IOCtx_t;  
+  lan8742_ReadReg_Func   ReadReg;
+  lan8742_GetTick_Func   GetTick;
+} lan8742_IOCtx_t;
 
-  
-typedef struct 
+
+typedef struct
 {
   uint32_t            DevAddr;
   uint32_t            Is_Initialized;
@@ -398,14 +398,14 @@ typedef struct
 }lan8742_Object_t;
 /**
   * @}
-  */ 
+  */
 
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions --------------------------------------------------------*/
 /** @defgroup LAN8742_Exported_Functions LAN8742 Exported Functions
   * @{
   */
-int32_t LAN8742_RegisterBusIO(lan8742_Object_t *pObj, lan8742_IOCtx_t *ioctx);
+int32_t LAN8742_RegisterBusIO(lan8742_Object_t *pObj, const lan8742_IOCtx_t *ioctx);
 int32_t LAN8742_Init(lan8742_Object_t *pObj);
 int32_t LAN8742_DeInit(lan8742_Object_t *pObj);
 int32_t LAN8742_DisablePowerDownMode(lan8742_Object_t *pObj);
@@ -421,7 +421,7 @@ int32_t LAN8742_ClearIT(lan8742_Object_t *pObj, uint32_t Interrupt);
 int32_t LAN8742_GetITStatus(lan8742_Object_t *pObj, uint32_t Interrupt);
 /**
   * @}
-  */ 
+  */
 
 #ifdef __cplusplus
 }
@@ -431,7 +431,7 @@ int32_t LAN8742_GetITStatus(lan8742_Object_t *pObj, uint32_t Interrupt);
 
 /**
   * @}
-  */ 
+  */
 
 /**
   * @}
@@ -439,8 +439,8 @@ int32_t LAN8742_GetITStatus(lan8742_Object_t *pObj, uint32_t Interrupt);
 
 /**
   * @}
-  */ 
+  */
 
 /**
   * @}
-  */       
+  */
