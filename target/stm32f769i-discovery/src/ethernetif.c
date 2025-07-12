@@ -44,24 +44,45 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
+#include <string.h>
 #include "stm32f7xx_hal.h"
 #include "lwip/opt.h"
+#include "lwip/memp.h"
 #include "lwip/timeouts.h"
 #include "netif/ethernet.h"
 #include "netif/etharp.h"
 #include "ethernetif.h"
-#include <string.h>
+#include "ptpd.h"
+#include "lan8742/lan8742.h"
 
 /* Private typedef -----------------------------------------------------------*/
+typedef enum
+{
+  RX_ALLOC_OK       = 0x00,
+  RX_ALLOC_ERROR    = 0x01
+} RxAllocStatusTypeDef;
+
+typedef struct
+{
+  struct pbuf_custom pbuf_custom;
+  uint8_t buff[(ETH_RX_BUF_SIZE + 31) & ~31];
+} RxBuff_t;
 /* Private define ------------------------------------------------------------*/
 /* The time to block waiting for input. */
 #define TIME_WAITING_FOR_INPUT                 ( osWaitForever )
 /* Stack size of the interface thread */
 #define INTERFACE_THREAD_STACK_SIZE            ( 350 )
+#define ETHIF_TX_TIMEOUT                       (2000U)
 
 /* Define those to better describe your network interface. */
 #define IFNAME0 's'
 #define IFNAME1 't'
+#define ETH_DMA_TRANSMIT_TIMEOUT               (20U)
+
+/* This app buffers receive packets of its primary service protocol for processing later. */
+#define ETH_RX_BUFFER_CNT                      10
+/* HAL_ETH_Transmit(_IT) may attach two buffers per descriptor. */
+#define ETH_TX_BUFFER_MAX                      ((ETH_TX_DESC_CNT) * 2)
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -76,52 +97,630 @@
          Please refer to MPU_Config() in main.c file.
  */
 #if defined ( __CC_ARM   )
-ETH_DMADescTypeDef  DMARxDscrTab[ETH_RXBUFNB] __attribute__((at(0x2007C000)));/* Ethernet Rx DMA Descriptors */
+ETH_DMADescTypeDef  DMARxDscrTab[ETH_RX_DESC_CNT] __attribute__((at(0x2007C000)));/* Ethernet Rx DMA Descriptors */
 
-ETH_DMADescTypeDef  DMATxDscrTab[ETH_TXBUFNB] __attribute__((at(0x2007C080)));/* Ethernet Tx DMA Descriptors */
+ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT] __attribute__((at(0x2007C080)));/* Ethernet Tx DMA Descriptors */
 
-uint8_t Rx_Buff[ETH_RXBUFNB][ETH_RX_BUF_SIZE] __attribute__((at(0x2007C100))); /* Ethernet Receive Buffers */
+uint8_t Rx_Buff[ETH_RX_DESC_CNT][ETH_RX_BUF_SIZE] __attribute__((at(0x2007C100))); /* Ethernet Receive Buffers */
 
-uint8_t Tx_Buff[ETH_TXBUFNB][ETH_TX_BUF_SIZE] __attribute__((at(0x2007D8D0))); /* Ethernet Transmit Buffers */
+uint8_t Tx_Buff[ETH_TX_DESC_CNT][ETH_TX_BUF_SIZE] __attribute__((at(0x2007D8D0))); /* Ethernet Transmit Buffers */
 
 #elif defined ( __ICCARM__ ) /*!< IAR Compiler */
   #pragma data_alignment=4
 
 #pragma location=0x2007C000
-__no_init ETH_DMADescTypeDef  DMARxDscrTab[ETH_RXBUFNB];/* Ethernet Rx DMA Descriptors */
+__no_init ETH_DMADescTypeDef  DMARxDscrTab[ETH_RX_DESC_CNT];/* Ethernet Rx DMA Descriptors */
 
 #pragma location=0x2007C080
-__no_init ETH_DMADescTypeDef  DMATxDscrTab[ETH_TXBUFNB];/* Ethernet Tx DMA Descriptors */
+__no_init ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT];/* Ethernet Tx DMA Descriptors */
 
 #pragma location=0x2007C100
-__no_init uint8_t Rx_Buff[ETH_RXBUFNB][ETH_RX_BUF_SIZE]; /* Ethernet Receive Buffers */
+__no_init uint8_t Rx_Buff[ETH_RX_DESC_CNT][ETH_RX_BUF_SIZE]; /* Ethernet Receive Buffers */
 
 #pragma location=0x2007D8D0
-__no_init uint8_t Tx_Buff[ETH_TXBUFNB][ETH_TX_BUF_SIZE]; /* Ethernet Transmit Buffers */
+__no_init uint8_t Tx_Buff[ETH_TX_DESC_CNT][ETH_TX_BUF_SIZE]; /* Ethernet Transmit Buffers */
 
 #elif defined ( __GNUC__ ) /*!< GNU Compiler */
+static ETH_DMADescTypeDef  DMARxDscrTab[ETH_RX_DESC_CNT] __attribute__((section(".RxDescripSection")));/* Ethernet Rx DMA Descriptors */
+static ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT] __attribute__((section(".TxDescripSection")));/* Ethernet Tx DMA Descriptors */
 
-ETH_DMADescTypeDef  DMARxDscrTab[ETH_RXBUFNB] __attribute__((section(".RxDescripSection")));/* Ethernet Rx DMA Descriptors */
-
-ETH_DMADescTypeDef  DMATxDscrTab[ETH_TXBUFNB] __attribute__((section(".TxDescripSection")));/* Ethernet Tx DMA Descriptors */
-
-uint8_t Rx_Buff[ETH_RXBUFNB][ETH_RX_BUF_SIZE] __attribute__((section(".RxBUF"))); /* Ethernet Receive Buffers */
-
-uint8_t Tx_Buff[ETH_TXBUFNB][ETH_TX_BUF_SIZE] __attribute__((section(".TxBUF"))); /* Ethernet Transmit Buffers */
-
+//static uint8_t Rx_Buff[ETH_RX_DESC_CNT][ETH_RX_BUF_SIZE] __attribute__((section(".RxBUF"))); /* Ethernet Receive Buffers */
+//static uint8_t Tx_Buff[ETH_TX_DESC_CNT][ETH_TX_BUF_SIZE] __attribute__((section(".TxBUF"))); /* Ethernet Transmit Buffers */
+static LWIP_MEMPOOL_DECLARE(RX_POOL, ETH_RX_BUFFER_CNT, sizeof(RxBuff_t), "Zero-copy RX PBUF pool");
 #endif
 
-/* Semaphore to signal incoming packets */
-static osSemaphoreId s_xSemaphore = NULL;
+static osSemaphoreId RxPktSemaphore;
+static osSemaphoreId TxPktSemaphore;
+static ETH_TxPacketConfig TxConfig;
+static lan8742_Object_t LAN8742;
+static uint8_t RxAllocStatus;
 
-/* Global Ethernet handle*/
+/* Global Ethernet handle */
 ETH_HandleTypeDef EthHandle;
 
 /* Private function prototypes -----------------------------------------------*/
-static void ethernetif_input( void const * argument );
+static void ethernetif_input_thread( void const * argument );
 static void RMII_Thread( void const * argument );
 
+static int32_t ETH_PHY_IO_Init(void) {HAL_ETH_SetMDIOClockRange(&EthHandle); return 0;}
+static int32_t ETH_PHY_IO_DeInit (void){return 0;}
+static int32_t ETH_PHY_IO_ReadReg(uint32_t DevAddr, uint32_t RegAddr, uint32_t *pRegVal){
+    return (HAL_ETH_ReadPHYRegister(&EthHandle, DevAddr, RegAddr, pRegVal) == HAL_OK) ? 0 : -1;
+}
+static int32_t ETH_PHY_IO_WriteReg(uint32_t DevAddr, uint32_t RegAddr, uint32_t RegVal){
+    return (HAL_ETH_WritePHYRegister(&EthHandle, DevAddr, RegAddr, RegVal) == HAL_OK) ? 0 : -1;
+}
+static int32_t ETH_PHY_IO_GetTick(void) { return HAL_GetTick(); }
+static const lan8742_IOCtx_t  LAN8742_IOCtx = {
+    ETH_PHY_IO_Init,
+    ETH_PHY_IO_DeInit,
+    ETH_PHY_IO_WriteReg,
+    ETH_PHY_IO_ReadReg,
+    ETH_PHY_IO_GetTick
+};
 /* Private functions ---------------------------------------------------------*/
+
+static uint32_t subsecond_to_nanosecond(uint32_t SubSecondValue)
+{
+  uint64_t val = SubSecondValue * 1000000000ll;
+  val >>= 31;
+  return val;
+}
+
+static void pbuf_free_custom(struct pbuf *p)
+{
+  struct pbuf_custom* custom_pbuf = (struct pbuf_custom*)p;
+  LWIP_MEMPOOL_FREE(RX_POOL, custom_pbuf);
+
+  if (RxAllocStatus == RX_ALLOC_ERROR)
+  {
+    RxAllocStatus = RX_ALLOC_OK;
+    osSemaphoreRelease(RxPktSemaphore);
+  }
+}
+
+/*******************************************************************************
+                       LL Driver Interface ( LwIP stack --> ETH)
+*******************************************************************************/
+static void low_level_init_phy(struct netif *netif)
+{
+    uint32_t duplex, speed;
+    int32_t PHYLinkState;
+    ETH_MACConfigTypeDef MACConf;
+
+    /* Set PHY IO functions */
+    LAN8742_RegisterBusIO(&LAN8742, &LAN8742_IOCtx);
+
+    LAN8742_DeInit(&LAN8742);
+
+    /* Initialize the LAN8742 ETH PHY */
+    if(LAN8742_Init(&LAN8742) != LAN8742_STATUS_OK){
+        netif_set_link_down(netif);
+        netif_set_down(netif);
+        return;
+    }
+    /* Wait for link */
+    osDelay(3000);
+
+    PHYLinkState = LAN8742_GetLinkState(&LAN8742);
+
+    /* Get link state */
+    if(PHYLinkState <= LAN8742_STATUS_LINK_DOWN) {
+        netif_set_link_down(netif);
+        netif_set_down(netif);
+    } else {
+        switch (PHYLinkState) {
+            case LAN8742_STATUS_100MBITS_FULLDUPLEX:
+                duplex = ETH_FULLDUPLEX_MODE;
+                speed = ETH_SPEED_100M;
+                break;
+            case LAN8742_STATUS_100MBITS_HALFDUPLEX:
+                duplex = ETH_HALFDUPLEX_MODE;
+                speed = ETH_SPEED_100M;
+                break;
+            case LAN8742_STATUS_10MBITS_FULLDUPLEX:
+                duplex = ETH_FULLDUPLEX_MODE;
+                speed = ETH_SPEED_10M;
+                break;
+            case LAN8742_STATUS_10MBITS_HALFDUPLEX:
+                duplex = ETH_HALFDUPLEX_MODE;
+                speed = ETH_SPEED_10M;
+                break;
+            default:
+                duplex = ETH_FULLDUPLEX_MODE;
+                speed = ETH_SPEED_100M;
+                break;
+        }
+
+        /* Get MAC Config MAC */
+        HAL_ETH_GetMACConfig(&EthHandle, &MACConf);
+        MACConf.DuplexMode = duplex;
+        MACConf.Speed = speed;
+        HAL_ETH_SetMACConfig(&EthHandle, &MACConf);
+        HAL_ETH_Start_IT(&EthHandle);
+        netif_set_up(netif);
+        netif_set_link_up(netif);
+    }
+
+    /* Check if it's a STM32F76xxx Revision A */
+    if(HAL_GetREVID() == 0x1000) {
+        /*
+            This thread will keep resetting the RMII interface until good frames are received
+        */
+        osThreadDef(RMII_Watchdog, RMII_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
+        osThreadCreate (osThread(RMII_Watchdog), NULL);
+    }
+}
+/**
+  * @brief In this function, the hardware should be initialized.
+  * Called from ethernetif_init().
+  *
+  * @param netif the already initialized lwip network interface structure
+  *        for this ethernetif
+  */
+static void low_level_init(struct netif *netif)
+{
+    uint8_t macaddress[6]= { MAC_ADDR0, MAC_ADDR1, MAC_ADDR2, MAC_ADDR3, MAC_ADDR4, MAC_ADDR5 };
+
+    EthHandle.Instance = ETH;
+    EthHandle.Init.MACAddr = macaddress;
+    EthHandle.Init.MediaInterface = ETH_MEDIA_INTERFACE_RMII;
+    EthHandle.Init.RxDesc = DMARxDscrTab;
+    EthHandle.Init.TxDesc = DMATxDscrTab;
+    EthHandle.Init.RxBuffLen = ETH_RX_BUF_SIZE;
+
+    /* configure ethernet peripheral (GPIOs, clocks, MAC, DMA) */
+    HAL_ETH_Init(&EthHandle);
+
+    /* set netif MAC hardware address length */
+    netif->hwaddr_len = ETHARP_HWADDR_LEN;
+
+    /* set netif MAC hardware address */
+    netif->hwaddr[0] =  MAC_ADDR0;
+    netif->hwaddr[1] =  MAC_ADDR1;
+    netif->hwaddr[2] =  MAC_ADDR2;
+    netif->hwaddr[3] =  MAC_ADDR3;
+    netif->hwaddr[4] =  MAC_ADDR4;
+    netif->hwaddr[5] =  MAC_ADDR5;
+
+    /* set netif maximum transfer unit */
+    netif->mtu = ETH_MAX_PAYLOAD;
+
+    /* device capabilities */
+    /* don't set NETIF_FLAG_ETHARP if this device is not an ethernet one */
+    netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP;
+
+    /* Initialize the RX POOL */
+    LWIP_MEMPOOL_INIT(RX_POOL);
+
+    /* Set Tx packet config common parameters */
+    memset(&TxConfig, 0 , sizeof(ETH_TxPacketConfig));
+    TxConfig.Attributes = ETH_TX_PACKETS_FEATURES_CSUM | ETH_TX_PACKETS_FEATURES_CRCPAD;
+    TxConfig.ChecksumCtrl = ETH_CHECKSUM_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
+    TxConfig.CRCPadCtrl = ETH_CRC_PAD_INSERT;
+
+    /* create a binary semaphore used for informing ethernetif of frame reception */
+    RxPktSemaphore = xSemaphoreCreateBinary();
+    TxPktSemaphore = xSemaphoreCreateBinary();
+
+    /* create the task that handles the ETH_MAC */
+    osThreadDef(EthIf, ethernetif_input_thread, osPriorityRealtime, 0, INTERFACE_THREAD_STACK_SIZE);
+    osThreadCreate (osThread(EthIf), netif);
+
+    low_level_init_phy(netif);
+}
+
+
+/**
+  * @brief This function should do the actual transmission of the packet. The packet is
+  * contained in the pbuf that is passed to the function. This pbuf
+  * might be chained.
+  *
+  * @param netif the lwip network interface structure for this ethernetif
+  * @param p the MAC packet to send (e.g. IP packet including MAC addresses and type)
+  * @return ERR_OK if the packet could be sent
+  *         an err_t value if the packet couldn't be sent
+  *
+  * @note Returning ERR_MEM here if a DMA queue of your MAC is full can lead to
+  *       strange results. You might consider waiting for space in the DMA queue
+  *       to become available since the stack doesn't retry to send a packet
+  *       dropped because of memory failure (except for the TCP timers).
+  */
+static err_t low_level_output(struct netif *netif, struct pbuf *p)
+{
+    uint32_t i = 0U;
+    struct pbuf *q = NULL;
+    err_t errval = ERR_OK;
+    ETH_BufferTypeDef Txbuffer[ETH_TX_DESC_CNT];
+
+    memset (Txbuffer, 0, ETH_TX_DESC_CNT * sizeof (ETH_BufferTypeDef));
+
+    for (q = p; q != NULL; q = q->next)
+    {
+        if (i >= ETH_TX_DESC_CNT)
+            return ERR_IF;
+
+        Txbuffer[i].buffer = q->payload;
+        Txbuffer[i].len    = q->len;
+
+        if (i > 0)
+        {
+            Txbuffer[i - 1].next = &Txbuffer[i];
+        }
+
+        if (q->next == NULL)
+        {
+            Txbuffer[i].next = NULL;
+        }
+
+        i++;
+    }
+
+    TxConfig.Length   = p->tot_len;
+    TxConfig.TxBuffer = Txbuffer;
+    TxConfig.pData    = p;
+
+    pbuf_ref (p);
+
+    do
+    {
+       if (HAL_ETH_Transmit_IT (&EthHandle, &TxConfig) == HAL_OK)
+       {
+            errval = ERR_OK;
+       }
+       else
+       {
+            if (HAL_ETH_GetError (&EthHandle) & HAL_ETH_ERROR_BUSY)
+            {
+                /* Wait for descriptors to become available */
+                osSemaphoreWait (TxPktSemaphore, ETHIF_TX_TIMEOUT);
+                HAL_ETH_ReleaseTxPacket (&EthHandle);
+                errval = ERR_BUF;
+            }
+            else
+            {
+                /* Other error */
+                pbuf_free (p);
+                errval = ERR_IF;
+            }
+       }
+    } while (errval == ERR_BUF);
+
+    return errval;
+}
+
+/**
+  * @brief Should allocate a pbuf and transfer the bytes of the incoming
+  * packet from the interface into the pbuf.
+  *
+  * @param netif the lwip network interface structure for this ethernetif
+  * @return a pbuf filled with the received packet (including MAC header)
+  *         NULL on memory error
+  */
+static struct pbuf * low_level_input(struct netif *netif)
+{
+    struct pbuf *p = NULL;
+
+    if(RxAllocStatus == RX_ALLOC_OK) {
+        HAL_ETH_ReadData(&EthHandle, (void **)&p);
+    }
+
+    return p;
+}
+
+/**
+  * @brief  Checks whether the specified ETHERNET PTP flag is set or not.
+  * @param  flag: specifies the flag to check.
+  *   This parameter can be one of the following values:
+  *     @arg ETH_PTP_FLAG_TSARU : Addend Register Update
+  *     @arg ETH_PTP_FLAG_TSITE : Time Stamp Interrupt Trigger Enable
+  *     @arg ETH_PTP_FLAG_TSSTU : Time Stamp Update
+  *     @arg ETH_PTP_FLAG_TSSTI  : Time Stamp Initialize
+  * @retval The new state of ETHERNET PTP Flag (SET or RESET).
+  */
+static FlagStatus ll_ptp_get_flag(uint32_t flag)
+{
+  FlagStatus bitstatus = RESET;
+
+  if ((EthHandle.Instance->PTPTSCR & flag) != (uint32_t)RESET)
+  {
+    bitstatus = SET;
+  }
+  else
+  {
+    bitstatus = RESET;
+  }
+  return bitstatus;
+}
+
+/**
+  * @brief  Sets the Time Stamp update sign and values.
+  * @param  Sign: specifies the PTP Time update value sign.
+  *   This parameter can be one of the following values:
+  *     @arg ETH_PTP_PositiveTime : positive time value.
+  *     @arg ETH_PTP_NegativeTime : negative time value.
+  * @param  SecondValue: specifies the PTP Time update second value.
+  * @param  SubSecondValue: specifies the PTP Time update sub-second value.
+  *   This parameter is a 31 bit value, bit32 correspond to the sign.
+  * @retval None
+  */
+static void ll_ptp_set_time_stamp_update(uint32_t Sign, uint32_t SecondValue, uint32_t SubSecondValue)
+{
+  /* Set the PTP Time Update High Register */
+  EthHandle.Instance->PTPTSHUR = SecondValue;
+  /* Set the PTP Time Update Low Register with sign */
+  EthHandle.Instance->PTPTSLUR = Sign | SubSecondValue;
+}
+
+/**
+  * @brief This function is the ethernetif_input task, it is processed when a packet
+  * is ready to be read from the interface. It uses the function low_level_input()
+  * that should handle the actual reception of bytes from the network
+  * interface. Then the type of the received packet is determined and
+  * the appropriate input function is called.
+  *
+  * @param netif the lwip network interface structure for this ethernetif
+  */
+static void ethernetif_input_thread( void const * argument )
+{
+  struct pbuf *p;
+  struct netif *netif = (struct netif *) argument;
+
+  for( ;; )
+  {
+    if (osSemaphoreWait(RxPktSemaphore, TIME_WAITING_FOR_INPUT)==osOK)
+    {
+      do
+      {
+        p = low_level_input( netif );
+        if (p != NULL)
+        {
+          if (netif->input( p, netif) != ERR_OK )
+          {
+            pbuf_free(p);
+          }
+        }
+      }while(p!=NULL);
+    }
+  }
+}
+
+/**
+  * @brief Should be called at the beginning of the program to set up the
+  * network interface. It calls the function low_level_init() to do the
+  * actual setup of the hardware.
+  *
+  * This function should be passed as a parameter to netif_add().
+  *
+  * @param netif the lwip network interface structure for this ethernetif
+  * @return ERR_OK if the loopif is initialized
+  *         ERR_MEM if private data couldn't be allocated
+  *         any other err_t on error
+  */
+err_t ethernetif_init(struct netif *netif)
+{
+  LWIP_ASSERT("netif != NULL", (netif != NULL));
+
+#if LWIP_NETIF_HOSTNAME
+  /* Initialize interface hostname */
+  netif->hostname = "lwip";
+#endif /* LWIP_NETIF_HOSTNAME */
+
+  netif->name[0] = IFNAME0;
+  netif->name[1] = IFNAME1;
+
+  /* We directly use etharp_output() here to save a function call.
+   * You can instead declare your own function an call etharp_output()
+   * from it if you have to do some checks before sending (e.g. if link
+   * is available...) */
+  netif->output = etharp_output;
+  netif->linkoutput = low_level_output;
+
+  /* initialize the hardware */
+  low_level_init(netif);
+
+  return ERR_OK;
+}
+
+void ethernetif_ptp_init(void)
+{
+  /* 1- Mask the Time stamp trigger interrupt by setting bit 9 in the MACIMR register. */
+  EthHandle.Instance->MACIMR |= ETH_MAC_IT_TST;
+  /* 2- Program Time stamp register bit 0 to enable time stamping. */
+  EthHandle.Instance->PTPTSCR = ETH_PTPTSCR_TSE | ETH_PTPTSCR_TSSIPV4FE |
+        ETH_PTPTSCR_TSSIPV6FE | ETH_PTPTSCR_TSSARFE | ETH_PTPTSCR_TSSMRME;
+  /*3- Program the Subsecond increment register based on the PTP clock frequency. */
+  EthHandle.Instance->PTPSSIR = ADJ_FREQ_BASE_INCREMENT; /* to achieve 20 ns accuracy, the value is ~ 43 */
+  /*4- If you are using the Fine correction method, program the Time stamp addend register
+   * and set Time stamp control register bit 5 (addend register update). */
+  EthHandle.Instance->PTPTSAR = ADJ_FREQ_BASE_ADDEND;
+  /* Enable the PTP block update with the Time Stamp Addend register value */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
+  /*5- Poll the Time stamp control register until bit 5 is cleared. */
+  while(ll_ptp_get_flag(ETH_PTP_FLAG_TSARU) == SET);
+  /*6- To select the Fine correction method (if required), program Time stamp control register  bit 1. */
+  /* Enable the PTP Fine Update method */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSFCU;
+  /*7- Program the Time stamp high update and Time stamp low update registers with the appropriate time value. */
+  /* Set the PTP Time Update High and Low Register */
+  EthHandle.Instance->PTPTSHUR = 0;
+  EthHandle.Instance->PTPTSLUR = ETH_PTP_PositiveTime | 0;
+  /*8- Set Time stamp control register bit 2 (Time stamp init). */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
+  /*9- The Time stamp counter starts operation as soon as it is initialized
+   * with the value written in the Time stamp update register. */
+}
+
+/**
+ * @brief
+ * 0000: 1 Hz with a pulse width of 125 ms for binary rollover and, of 100 ms for digital rollover
+ * 0001: 2 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ * 0010: 4 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ * 0011: 8 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ * 0100: 16 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ * ....
+ * 1111: 32768 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
+ */
+void ethernetif_ptp_set_pps_output(uint8_t freq)
+{
+    GPIO_InitTypeDef gpio_init;
+
+    ETH->PTPPPSCR = freq & 0x0f;
+
+    gpio_init.Pin = GPIO_PIN_5;  //LL_GPIO_PIN_8
+    gpio_init.Mode = GPIO_MODE_AF_PP;
+    gpio_init.Pull = GPIO_NOPULL;
+    gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+    gpio_init.Alternate = GPIO_AF11_ETH;
+    HAL_GPIO_Init(GPIOB, &gpio_init); //GPIOG
+}
+
+
+void ethernetif_ptp_set_time(struct ptptime_t * timestamp)
+{
+  uint32_t Sign;
+  uint32_t SecondValue;
+  uint32_t NanoSecondValue;
+  uint32_t SubSecondValue;
+
+  /* determine sign and correct Second and Nanosecond values */
+  if(timestamp->tv_sec < 0 || (timestamp->tv_sec == 0 && timestamp->tv_nsec < 0))
+  {
+    Sign = ETH_PTP_NegativeTime;
+    SecondValue = -timestamp->tv_sec;
+    NanoSecondValue = -timestamp->tv_nsec;
+  }
+  else
+  {
+    Sign = ETH_PTP_PositiveTime;
+    SecondValue = timestamp->tv_sec;
+    NanoSecondValue = timestamp->tv_nsec;
+  }
+
+  /* convert nanosecond to subseconds */
+  SubSecondValue = subsecond_to_nanosecond(NanoSecondValue);
+  /* Write the offset (positive or negative) in the Time stamp update high and low registers. */
+  ll_ptp_set_time_stamp_update(Sign, SecondValue, SubSecondValue);
+  /* Set Time stamp control register bit 2 (Time stamp init). */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
+  /* The Time stamp counter starts operation as soon as it is initialized
+   * with the value written in the Time stamp update register. */
+  while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTI) == SET);
+}
+
+void ethernetif_ptp_get_time(struct ptptime_t * timestamp)
+{
+  timestamp->tv_nsec = subsecond_to_nanosecond(EthHandle.Instance->PTPTSLR);
+  timestamp->tv_sec = EthHandle.Instance->PTPTSHR;
+}
+
+void ethernetif_ptp_update_offset(struct ptptime_t * timeoffset)
+{
+  uint32_t Sign;
+  uint32_t SecondValue;
+  uint32_t NanoSecondValue;
+  uint32_t SubSecondValue;
+  uint32_t addend;
+
+  /* determine sign and correct Second and Nanosecond values */
+  if(timeoffset->tv_sec < 0 || (timeoffset->tv_sec == 0 && timeoffset->tv_nsec < 0))
+  {
+    Sign = ETH_PTP_NegativeTime;
+    SecondValue = -timeoffset->tv_sec;
+    NanoSecondValue = -timeoffset->tv_nsec;
+  }
+  else
+  {
+    Sign = ETH_PTP_PositiveTime;
+    SecondValue = timeoffset->tv_sec;
+    NanoSecondValue = timeoffset->tv_nsec;
+  }
+
+  /* convert nanosecond to subseconds */
+  SubSecondValue = subsecond_to_nanosecond(NanoSecondValue);
+
+  /* read old addend register value*/
+  addend = EthHandle.Instance->PTPTSAR;
+
+  while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTU) == SET);
+  while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTI) == SET);
+
+  /* Write the offset (positive or negative) in the Time stamp update high and low registers. */
+  ll_ptp_set_time_stamp_update(Sign, SecondValue, SubSecondValue);
+
+  /* Set bit 3 (TSSTU) in the Time stamp control register. */
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTU;
+
+  /* The value in the Time stamp update registers is added to or subtracted from the system */
+  /* time when the TSSTU bit is cleared. */
+  while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTU) == SET);
+
+  /* Write back old addend register value. */
+  EthHandle.Instance->PTPTSAR = addend;
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
+}
+
+void ethernetif_ptp_adj_freq(int32_t Adj)
+{
+    uint32_t addend;
+
+  /* calculate the rate by which you want to speed up or slow down the system time
+     increments */
+
+  /* precise */
+  /*
+  int64_t addend;
+  addend = Adj;
+  addend *= ADJ_FREQ_BASE_ADDEND;
+  addend /= 1000000000-Adj;
+  addend += ADJ_FREQ_BASE_ADDEND;
+  */
+
+  /* 32bit estimation
+  ADJ_LIMIT = ((1l<<63)/275/ADJ_FREQ_BASE_ADDEND) = 11258181 = 11 258 ppm*/
+  if( Adj > 5120000) Adj = 5120000;
+  if( Adj < -5120000) Adj = -5120000;
+
+  addend = ((((275LL * Adj)>>8) * (ADJ_FREQ_BASE_ADDEND >> 24)) >> 6) + ADJ_FREQ_BASE_ADDEND;
+
+  /* Reprogram the Time stamp addend register with new Rate value and set ETH_TPTSCR */
+  EthHandle.Instance->PTPTSAR = addend;
+  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
+}
+
+/**
+  * @brief  RMII interface watchdog thread
+  * @param  argument
+  * @retval None
+  */
+static void RMII_Thread( void const * argument )
+{
+  (void) argument;
+
+  for(;;)
+  {
+    /* some unicast good packets are received */
+    if(EthHandle.Instance->MMCRGUFCR > 0U)
+    {
+      /* RMII Init is OK: Delete the Thread */
+      osThreadTerminate(NULL);
+    }
+    else if(EthHandle.Instance->MMCRFCECR > 10U)
+    {
+      /* ETH received too many packets with CRC errors, resetting RMII */
+      SYSCFG->PMC &= ~SYSCFG_PMC_MII_RMII_SEL;
+      SYSCFG->PMC |= SYSCFG_PMC_MII_RMII_SEL;
+
+      EthHandle.Instance->MMCCR |= ETH_MMCCR_CR;
+    }
+    else
+    {
+      /* Delay 200 ms */
+      osDelay(200);
+    }
+  }
+}
+
 /*******************************************************************************
                        Ethernet MSP Routines
 *******************************************************************************/
@@ -184,604 +783,71 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef *heth)
   */
 void HAL_ETH_RxCpltCallback(ETH_HandleTypeDef *heth)
 {
-  osSemaphoreRelease(s_xSemaphore);
+    osSemaphoreRelease(RxPktSemaphore);
 }
 
-static uint32_t subsecond_to_nanosecond(uint32_t SubSecondValue)
+void HAL_ETH_TxCpltCallback(ETH_HandleTypeDef *heth)
 {
-  uint64_t val = SubSecondValue * 1000000000ll;
-  val >>= 31;
-  return val;
+    osSemaphoreRelease(TxPktSemaphore);
 }
 
-/*******************************************************************************
-                       LL Driver Interface ( LwIP stack --> ETH)
-*******************************************************************************/
-/**
-  * @brief In this function, the hardware should be initialized.
-  * Called from ethernetif_init().
-  *
-  * @param netif the already initialized lwip network interface structure
-  *        for this ethernetif
-  */
-static void low_level_init(struct netif *netif)
+void HAL_ETH_TxFreeCallback(uint32_t * buff)
 {
-  uint8_t macaddress[6]= { MAC_ADDR0, MAC_ADDR1, MAC_ADDR2, MAC_ADDR3, MAC_ADDR4, MAC_ADDR5 };
-
-  EthHandle.Instance = ETH;
-  EthHandle.Init.MACAddr = macaddress;
-  EthHandle.Init.AutoNegotiation = ETH_AUTONEGOTIATION_ENABLE;
-  EthHandle.Init.Speed = ETH_SPEED_100M;
-  EthHandle.Init.DuplexMode = ETH_MODE_FULLDUPLEX;
-  EthHandle.Init.MediaInterface = ETH_MEDIA_INTERFACE_RMII;
-  EthHandle.Init.RxMode = ETH_RXINTERRUPT_MODE;
-  EthHandle.Init.ChecksumMode = ETH_CHECKSUM_BY_HARDWARE;
-  EthHandle.Init.PhyAddress = LAN8742A_PHY_ADDRESS;
-
-  /* configure ethernet peripheral (GPIOs, clocks, MAC, DMA) */
-  if (HAL_ETH_Init(&EthHandle) == HAL_OK)
-  {
-    /* Set netif link flag */
-    netif->flags |= NETIF_FLAG_LINK_UP;
-  }
-
-  /* Initialize Tx Descriptors list: Chain Mode */
-  HAL_ETH_DMATxDescListInit(&EthHandle, DMATxDscrTab, &Tx_Buff[0][0], ETH_TXBUFNB);
-
-  /* Initialize Rx Descriptors list: Chain Mode  */
-  HAL_ETH_DMARxDescListInit(&EthHandle, DMARxDscrTab, &Rx_Buff[0][0], ETH_RXBUFNB);
-
-  /* set netif MAC hardware address length */
-  netif->hwaddr_len = ETHARP_HWADDR_LEN;
-
-  /* set netif MAC hardware address */
-  netif->hwaddr[0] =  MAC_ADDR0;
-  netif->hwaddr[1] =  MAC_ADDR1;
-  netif->hwaddr[2] =  MAC_ADDR2;
-  netif->hwaddr[3] =  MAC_ADDR3;
-  netif->hwaddr[4] =  MAC_ADDR4;
-  netif->hwaddr[5] =  MAC_ADDR5;
-
-  /* set netif maximum transfer unit */
-  netif->mtu = 1500;
-
-  /* Accept broadcast address and ARP traffic */
-  netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP;
-
-  /* create a binary semaphore used for informing ethernetif of frame reception */
-  osSemaphoreDef(SEM);
-  s_xSemaphore = osSemaphoreCreate(osSemaphore(SEM) , 1 );
-
-  /* create the task that handles the ETH_MAC */
-  osThreadDef(EthIf, ethernetif_input, osPriorityRealtime, 0, INTERFACE_THREAD_STACK_SIZE);
-  osThreadCreate (osThread(EthIf), netif);
-
-  /* Enable MAC and DMA transmission and reception */
-  HAL_ETH_Start(&EthHandle);
-
-  /* Check if it's a STM32F76xxx Revision A */
-  if(HAL_GetREVID() == 0x1000)
-  {
-    /*
-      Partial workaround for the Ethernet erroneous data received in RMII configuration Hardware Bug
-     (please refer to the STM32F76xxx STM32F77xxx Errata sheet)
-
-      This thread will keep resetting the RMII interface until good frames are received
-    */
-    osThreadDef(RMII_Watchdog, RMII_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-    osThreadCreate (osThread(RMII_Watchdog), NULL);
-  }
+    pbuf_free((struct pbuf *)buff);
 }
 
-
-/**
-  * @brief This function should do the actual transmission of the packet. The packet is
-  * contained in the pbuf that is passed to the function. This pbuf
-  * might be chained.
-  *
-  * @param netif the lwip network interface structure for this ethernetif
-  * @param p the MAC packet to send (e.g. IP packet including MAC addresses and type)
-  * @return ERR_OK if the packet could be sent
-  *         an err_t value if the packet couldn't be sent
-  *
-  * @note Returning ERR_MEM here if a DMA queue of your MAC is full can lead to
-  *       strange results. You might consider waiting for space in the DMA queue
-  *       to become available since the stack doesn't retry to send a packet
-  *       dropped because of memory failure (except for the TCP timers).
-  */
-static err_t low_level_output(struct netif *netif, struct pbuf *p)
+void HAL_ETH_RxAllocateCallback(uint8_t **buff)
 {
-  err_t errval;
-  struct pbuf *q;
-  uint8_t *buffer = (uint8_t *)(EthHandle.TxDesc->Buffer1Addr);
-  __IO ETH_DMADescTypeDef *DmaTxDesc;
-  uint32_t framelength = 0;
-  uint32_t bufferoffset = 0;
-  uint32_t byteslefttocopy = 0;
-  uint32_t payloadoffset = 0;
+    struct pbuf_custom *p = LWIP_MEMPOOL_ALLOC(RX_POOL);
 
-  DmaTxDesc = EthHandle.TxDesc;
-
-  /* copy frame from pbufs to driver buffers */
-  for(q = p; q != NULL; q = q->next)
-  {
-    /* Is this buffer available? If not, goto error */
-    if((DmaTxDesc->Status & ETH_DMATXDESC_OWN) != (uint32_t)RESET)
+    if (p)
     {
-      errval = ERR_USE;
-      goto error;
-    }
-
-    /* Get bytes in current lwIP buffer */
-    byteslefttocopy = q->len;
-    payloadoffset = 0;
-
-    /* Check if the length of data to copy is bigger than Tx buffer size*/
-    while( (byteslefttocopy + bufferoffset) > ETH_TX_BUF_SIZE )
-    {
-      /* Copy data to Tx buffer*/
-      memcpy( (uint8_t*)((uint8_t*)buffer + bufferoffset), (uint8_t*)((uint8_t*)q->payload + payloadoffset), (ETH_TX_BUF_SIZE - bufferoffset) );
-
-      /* Point to next descriptor */
-      DmaTxDesc = (ETH_DMADescTypeDef *)(DmaTxDesc->Buffer2NextDescAddr);
-
-      /* Check if the buffer is available */
-      if((DmaTxDesc->Status & ETH_DMATXDESC_OWN) != (uint32_t)RESET)
-      {
-        errval = ERR_USE;
-        goto error;
-      }
-
-      buffer = (uint8_t *)(DmaTxDesc->Buffer1Addr);
-
-      byteslefttocopy = byteslefttocopy - (ETH_TX_BUF_SIZE - bufferoffset);
-      payloadoffset = payloadoffset + (ETH_TX_BUF_SIZE - bufferoffset);
-      framelength = framelength + (ETH_TX_BUF_SIZE - bufferoffset);
-      bufferoffset = 0;
-    }
-
-    /* Copy the remaining bytes */
-    memcpy( (uint8_t*)((uint8_t*)buffer + bufferoffset), (uint8_t*)((uint8_t*)q->payload + payloadoffset), byteslefttocopy );
-    bufferoffset = bufferoffset + byteslefttocopy;
-    framelength = framelength + byteslefttocopy;
-  }
-
-  /* Prepare transmit descriptors to give to DMA */
-  HAL_ETH_TransmitFrame(&EthHandle, framelength);
-
-  errval = ERR_OK;
-
-error:
-
-  /* When Transmit Underflow flag is set, clear it and issue a Transmit Poll Demand to resume transmission */
-  if ((EthHandle.Instance->DMASR & ETH_DMASR_TUS) != (uint32_t)RESET)
-  {
-    /* Clear TUS ETHERNET DMA flag */
-    EthHandle.Instance->DMASR = ETH_DMASR_TUS;
-
-    /* Resume DMA transmission*/
-    EthHandle.Instance->DMATPDR = 0;
-  }
-  return errval;
-}
-
-/**
-  * @brief Should allocate a pbuf and transfer the bytes of the incoming
-  * packet from the interface into the pbuf.
-  *
-  * @param netif the lwip network interface structure for this ethernetif
-  * @return a pbuf filled with the received packet (including MAC header)
-  *         NULL on memory error
-  */
-static struct pbuf * low_level_input(struct netif *netif)
-{
-  struct pbuf *p = NULL, *q = NULL;
-  uint16_t len = 0;
-  uint8_t *buffer;
-  __IO ETH_DMADescTypeDef *dmarxdesc;
-  uint32_t bufferoffset = 0;
-  uint32_t payloadoffset = 0;
-  uint32_t byteslefttocopy = 0;
-  uint32_t i=0;
-
-  /* get received frame */
-  if(HAL_ETH_GetReceivedFrame_IT(&EthHandle) != HAL_OK)
-    return NULL;
-
-  /* Obtain the size of the packet and put it into the "len" variable. */
-  len = EthHandle.RxFrameInfos.length;
-  buffer = (uint8_t *)EthHandle.RxFrameInfos.buffer;
-
-  if (len > 0)
-  {
-    /* We allocate a pbuf chain of pbufs from the Lwip buffer pool */
-    p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
-  }
-
-  if (p != NULL)
-  {
-    dmarxdesc = EthHandle.RxFrameInfos.FSRxDesc;
-    bufferoffset = 0;
-
-    for(q = p; q != NULL; q = q->next)
-    {
-      byteslefttocopy = q->len;
-      payloadoffset = 0;
-
-      /* Check if the length of bytes to copy in current pbuf is bigger than Rx buffer size */
-      while( (byteslefttocopy + bufferoffset) > ETH_RX_BUF_SIZE )
-      {
-        /* Copy data to pbuf */
-        memcpy( (uint8_t*)((uint8_t*)q->payload + payloadoffset), (uint8_t*)((uint8_t*)buffer + bufferoffset), (ETH_RX_BUF_SIZE - bufferoffset));
-
-        /* Point to next descriptor */
-        dmarxdesc = (ETH_DMADescTypeDef *)(dmarxdesc->Buffer2NextDescAddr);
-        buffer = (uint8_t *)(dmarxdesc->Buffer1Addr);
-
-        byteslefttocopy = byteslefttocopy - (ETH_RX_BUF_SIZE - bufferoffset);
-        payloadoffset = payloadoffset + (ETH_RX_BUF_SIZE - bufferoffset);
-        bufferoffset = 0;
-      }
-
-      /* Copy remaining data in pbuf */
-      memcpy( (uint8_t*)((uint8_t*)q->payload + payloadoffset), (uint8_t*)((uint8_t*)buffer + bufferoffset), byteslefttocopy);
-      bufferoffset = bufferoffset + byteslefttocopy;
-    }
-  }
-
-  /* Release descriptors to DMA */
-  /* Point to first descriptor */
-  dmarxdesc = EthHandle.RxFrameInfos.FSRxDesc;
-  /* Set Own bit in Rx descriptors: gives the buffers back to DMA */
-  for (i=0; i< EthHandle.RxFrameInfos.SegCount; i++)
-  {
-    dmarxdesc->Status |= ETH_DMARXDESC_OWN;
-    dmarxdesc = (ETH_DMADescTypeDef *)(dmarxdesc->Buffer2NextDescAddr);
-  }
-
-  /* Clear Segment_Count */
-  EthHandle.RxFrameInfos.SegCount =0;
-
-  /* When Rx Buffer unavailable flag is set: clear it and resume reception */
-  if ((EthHandle.Instance->DMASR & ETH_DMASR_RBUS) != (uint32_t)RESET)
-  {
-    /* Clear RBUS ETHERNET DMA flag */
-    EthHandle.Instance->DMASR = ETH_DMASR_RBUS;
-    /* Resume DMA reception */
-    EthHandle.Instance->DMARPDR = 0;
-  }
-  return p;
-}
-
-/**
-  * @brief  Checks whether the specified ETHERNET PTP flag is set or not.
-  * @param  flag: specifies the flag to check.
-  *   This parameter can be one of the following values:
-  *     @arg ETH_PTP_FLAG_TSARU : Addend Register Update
-  *     @arg ETH_PTP_FLAG_TSITE : Time Stamp Interrupt Trigger Enable
-  *     @arg ETH_PTP_FLAG_TSSTU : Time Stamp Update
-  *     @arg ETH_PTP_FLAG_TSSTI  : Time Stamp Initialize
-  * @retval The new state of ETHERNET PTP Flag (SET or RESET).
-  */
-static FlagStatus ll_ptp_get_flag(uint32_t flag)
-{
-  FlagStatus bitstatus = RESET;
-
-  if ((EthHandle.Instance->PTPTSCR & flag) != (uint32_t)RESET)
-  {
-    bitstatus = SET;
-  }
-  else
-  {
-    bitstatus = RESET;
-  }
-  return bitstatus;
-}
-
-/**
-  * @brief  Sets the Time Stamp update sign and values.
-  * @param  Sign: specifies the PTP Time update value sign.
-  *   This parameter can be one of the following values:
-  *     @arg ETH_PTP_PositiveTime : positive time value.
-  *     @arg ETH_PTP_NegativeTime : negative time value.
-  * @param  SecondValue: specifies the PTP Time update second value.
-  * @param  SubSecondValue: specifies the PTP Time update sub-second value.
-  *   This parameter is a 31 bit value, bit32 correspond to the sign.
-  * @retval None
-  */
-static void ll_ptp_set_time_stamp_update(uint32_t Sign, uint32_t SecondValue, uint32_t SubSecondValue)
-{
-  /* Set the PTP Time Update High Register */
-  EthHandle.Instance->PTPTSHUR = SecondValue;
-  /* Set the PTP Time Update Low Register with sign */
-  EthHandle.Instance->PTPTSLUR = Sign | SubSecondValue;
-}
-
-/**
-  * @brief This function is the ethernetif_input task, it is processed when a packet
-  * is ready to be read from the interface. It uses the function low_level_input()
-  * that should handle the actual reception of bytes from the network
-  * interface. Then the type of the received packet is determined and
-  * the appropriate input function is called.
-  *
-  * @param netif the lwip network interface structure for this ethernetif
-  */
-static void ethernetif_input( void const * argument )
-{
-  struct pbuf *p;
-  struct netif *netif = (struct netif *) argument;
-
-  for( ;; )
-  {
-    if (osSemaphoreWait( s_xSemaphore, TIME_WAITING_FOR_INPUT)==osOK)
-    {
-      do
-      {
-        p = low_level_input( netif );
-        if (p != NULL)
-        {
-          if (netif->input( p, netif) != ERR_OK )
-          {
-            pbuf_free(p);
-          }
-        }
-      }while(p!=NULL);
-    }
-  }
-}
-
-/**
-  * @brief Should be called at the beginning of the program to set up the
-  * network interface. It calls the function low_level_init() to do the
-  * actual setup of the hardware.
-  *
-  * This function should be passed as a parameter to netif_add().
-  *
-  * @param netif the lwip network interface structure for this ethernetif
-  * @return ERR_OK if the loopif is initialized
-  *         ERR_MEM if private data couldn't be allocated
-  *         any other err_t on error
-  */
-err_t ethernetif_init(struct netif *netif)
-{
-  LWIP_ASSERT("netif != NULL", (netif != NULL));
-
-#if LWIP_NETIF_HOSTNAME
-  /* Initialize interface hostname */
-  netif->hostname = "lwip";
-#endif /* LWIP_NETIF_HOSTNAME */
-
-  netif->name[0] = IFNAME0;
-  netif->name[1] = IFNAME1;
-
-  /* We directly use etharp_output() here to save a function call.
-   * You can instead declare your own function an call etharp_output()
-   * from it if you have to do some checks before sending (e.g. if link
-   * is available...) */
-  netif->output = etharp_output;
-  netif->linkoutput = low_level_output;
-
-  /* initialize the hardware */
-  low_level_init(netif);
-
-  return ERR_OK;
-}
-
-void ethernetif_ptp_init(void)
-{
-  /* Mask the Time stamp trigger interrupt by setting bit 9 in the MACIMR register. */
-  EthHandle.Instance->MACIMR |= ETH_MAC_IT_TST;
-
-  /* Program Time stamp register bit 0 to enable time stamping. */
-  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSE | ETH_PTPTSSR_TSSIPV4FE | ETH_PTPTSSR_TSSIPV6FE | ETH_PTPTSSR_TSSARFE;
-
-  /* Program the Subsecond increment register based on the PTP clock frequency. */
-  EthHandle.Instance->PTPSSIR = ADJ_FREQ_BASE_INCREMENT; /* to achieve 20 ns accuracy, the value is ~ 43 */
-
-  /* If you are using the Fine correction method, program the Time stamp addend register
-   * and set Time stamp control register bit 5 (addend register update). */
-  EthHandle.Instance->PTPTSAR = ADJ_FREQ_BASE_ADDEND;
-  /* Enable the PTP block update with the Time Stamp Addend register value */
-  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
-
-  /* Poll the Time stamp control register until bit 5 is cleared. */
-  while(ll_ptp_get_flag(ETH_PTP_FLAG_TSARU) == SET);
-
-  /* To select the Fine correction method (if required),
-   * program Time stamp control register  bit 1. */
-  /* Enable the PTP Fine Update method */
-  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSFCU;
-
-  /* Program the Time stamp high update and Time stamp low update registers
-   * with the appropriate time value. */
-  /* Set the PTP Time Update High Register */
-  EthHandle.Instance->PTPTSHUR = 0;
-  EthHandle.Instance->PTPTSLUR = ETH_PTP_PositiveTime | 0;
-
-  /* Set Time stamp control register bit 2 (Time stamp init). */
-  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
-
-  /* The enhanced descriptor format is enabled and the descriptor size is
-   * increased to 32 bytes (8 DWORDS). This is required when time stamping
-   * is activated above. */
-  /* Enable enhanced descriptor structure */
-  EthHandle.Instance->DMABMR |= ETH_DMABMR_EDE;
-
-  /* The Time stamp counter starts operation as soon as it is initialized
-   * with the value written in the Time stamp update register. */
-
-  /* Timestam snapshot enable in master mode */
-  EthHandle.Instance->PTPTSCR |= ETH_PTPTSSR_TSSMRME;
-}
-
-/**
- * @brief
- * 0000: 1 Hz with a pulse width of 125 ms for binary rollover and, of 100 ms for digital rollover
- * 0001: 2 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
- * 0010: 4 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
- * 0011: 8 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
- * 0100: 16 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
- * ....
- * 1111: 32768 Hz with 50% duty cycle for binary rollover (digital rollover not recommended)
- */
-void ethernetif_ptp_set_pps_output(uint8_t freq)
-{
-    GPIO_InitTypeDef gpio_init;
-
-    ETH->PTPPPSCR = freq & 0x0f;
-
-    gpio_init.Pin = GPIO_PIN_5;  //LL_GPIO_PIN_8
-    gpio_init.Mode = GPIO_MODE_AF_PP;
-    gpio_init.Pull = GPIO_NOPULL;
-    gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-    gpio_init.Alternate = GPIO_AF11_ETH;
-    HAL_GPIO_Init(GPIOB, &gpio_init); //GPIOG
-}
-
-
-void ethernetif_ptp_set_time(struct ptptime_t * timestamp)
-{
-    uint32_t Sign;
-	uint32_t SecondValue;
-	uint32_t NanoSecondValue;
-	uint32_t SubSecondValue;
-
-	/* determine sign and correct Second and Nanosecond values */
-	if(timestamp->tv_sec < 0 || (timestamp->tv_sec == 0 && timestamp->tv_nsec < 0))
-	{
-		Sign = ETH_PTP_NegativeTime;
-		SecondValue = -timestamp->tv_sec;
-		NanoSecondValue = -timestamp->tv_nsec;
-	}
-	else
-	{
-		Sign = ETH_PTP_PositiveTime;
-		SecondValue = timestamp->tv_sec;
-		NanoSecondValue = timestamp->tv_nsec;
-	}
-
-	/* convert nanosecond to subseconds */
-	SubSecondValue = subsecond_to_nanosecond(NanoSecondValue);
-	/* Write the offset (positive or negative) in the Time stamp update high and low registers. */
-	ll_ptp_set_time_stamp_update(Sign, SecondValue, SubSecondValue);
-	/* Set Time stamp control register bit 2 (Time stamp init). */
-	EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
-	/* The Time stamp counter starts operation as soon as it is initialized
-	 * with the value written in the Time stamp update register. */
-	while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTI) == SET);
-}
-
-void ethernetif_ptp_get_time(struct ptptime_t * timestamp)
-{
-  timestamp->tv_nsec = subsecond_to_nanosecond(EthHandle.Instance->PTPTSLR);
-  timestamp->tv_sec = EthHandle.Instance->PTPTSHR;
-}
-
-void ethernetif_ptp_update_offset(struct ptptime_t * timeoffset)
-{
-    uint32_t Sign;
-	uint32_t SecondValue;
-	uint32_t NanoSecondValue;
-	uint32_t SubSecondValue;
-	uint32_t addend;
-
-	/* determine sign and correct Second and Nanosecond values */
-	if(timeoffset->tv_sec < 0 || (timeoffset->tv_sec == 0 && timeoffset->tv_nsec < 0))
-	{
-		Sign = ETH_PTP_NegativeTime;
-		SecondValue = -timeoffset->tv_sec;
-		NanoSecondValue = -timeoffset->tv_nsec;
-	}
-	else
-	{
-		Sign = ETH_PTP_PositiveTime;
-		SecondValue = timeoffset->tv_sec;
-		NanoSecondValue = timeoffset->tv_nsec;
-	}
-
-	/* convert nanosecond to subseconds */
-	SubSecondValue = subsecond_to_nanosecond(NanoSecondValue);
-
-	/* read old addend register value*/
-	addend = EthHandle.Instance->PTPTSAR;
-
-	while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTU) == SET);
-	while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTI) == SET);
-
-	/* Write the offset (positive or negative) in the Time stamp update high and low registers. */
-	ll_ptp_set_time_stamp_update(Sign, SecondValue, SubSecondValue);
-
-	/* Set bit 3 (TSSTU) in the Time stamp control register. */
-	EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTU;
-
-	/* The value in the Time stamp update registers is added to or subtracted from the system */
-	/* time when the TSSTU bit is cleared. */
-	while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTU) == SET);
-
-	/* Write back old addend register value. */
-	EthHandle.Instance->PTPTSAR = addend;
-	EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
-}
-
-void ethernetif_ptp_adj_freq(int32_t Adj)
-{
-    uint32_t addend;
-
-	/* calculate the rate by which you want to speed up or slow down the system time
-		 increments */
-
-	/* precise */
-	/*
-	int64_t addend;
-	addend = Adj;
-	addend *= ADJ_FREQ_BASE_ADDEND;
-	addend /= 1000000000-Adj;
-	addend += ADJ_FREQ_BASE_ADDEND;
-	*/
-
-	/* 32bit estimation
-	ADJ_LIMIT = ((1l<<63)/275/ADJ_FREQ_BASE_ADDEND) = 11258181 = 11 258 ppm*/
-	if( Adj > 5120000) Adj = 5120000;
-	if( Adj < -5120000) Adj = -5120000;
-
-	addend = ((((275LL * Adj)>>8) * (ADJ_FREQ_BASE_ADDEND >> 24)) >> 6) + ADJ_FREQ_BASE_ADDEND;
-
-	/* Reprogram the Time stamp addend register with new Rate value and set ETH_TPTSCR */
-	EthHandle.Instance->PTPTSAR = addend;
-	EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSARU;
-}
-
-/**
-  * @brief  RMII interface watchdog thread
-  * @param  argument
-  * @retval None
-  */
-static void RMII_Thread( void const * argument )
-{
-  (void) argument;
-
-  for(;;)
-  {
-    /* some unicast good packets are received */
-    if(EthHandle.Instance->MMCRGUFCR > 0U)
-    {
-      /* RMII Init is OK: Delete the Thread */
-      osThreadTerminate(NULL);
-    }
-    else if(EthHandle.Instance->MMCRFCECR > 10U)
-    {
-      /* ETH received too many packets with CRC errors, resetting RMII */
-      SYSCFG->PMC &= ~SYSCFG_PMC_MII_RMII_SEL;
-      SYSCFG->PMC |= SYSCFG_PMC_MII_RMII_SEL;
-
-      EthHandle.Instance->MMCCR |= ETH_MMCCR_CR;
+        /* Get the buff from the struct pbuf address. */
+        *buff = (uint8_t *)p + offsetof(RxBuff_t, buff);
+        p->custom_free_function = pbuf_free_custom;
+        /* Initialize the struct pbuf.
+        * This must be performed whenever a buffer's allocated because it may be
+        * changed by lwIP or the app, e.g., pbuf_free decrements ref. */
+        pbuf_alloced_custom(PBUF_RAW, 0, PBUF_REF, p, *buff, ETH_RX_BUF_SIZE);
     }
     else
     {
-      /* Delay 200 ms */
-      osDelay(200);
+        RxAllocStatus = RX_ALLOC_ERROR;
+        *buff = NULL;
     }
-  }
+}
+
+void HAL_ETH_RxLinkCallback(void **pStart, void **pEnd, uint8_t *buff, uint16_t Length)
+{
+    struct pbuf **ppStart = (struct pbuf **)pStart;
+    struct pbuf **ppEnd = (struct pbuf **)pEnd;
+    struct pbuf *p = NULL;
+
+    /* Get the struct pbuf from the buff address. */
+    p = (struct pbuf *)(buff - offsetof(RxBuff_t, buff));
+    p->next = NULL;
+    p->tot_len = 0;
+    p->len = Length;
+
+    /* Chain the buffer. */
+    if (!*ppStart)
+    {
+        /* The first buffer of the packet. */
+        *ppStart = p;
+    }
+    else
+    {
+        /* Chain the buffer to the end of the packet. */
+        (*ppEnd)->next = p;
+    }
+        *ppEnd  = p;
+
+    /* Update the total length of all the buffers of the chain. Each pbuf in the chain should have its tot_len
+    * set to its own length, plus the length of all the following pbufs in the chain. */
+    for (p = *ppStart; p != NULL; p = p->next)
+    {
+        p->tot_len += Length;
+    }
 }
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

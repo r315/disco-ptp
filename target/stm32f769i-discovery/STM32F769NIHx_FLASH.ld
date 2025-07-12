@@ -41,13 +41,13 @@ _Min_Stack_Size = 0x800; /* required amount of stack */
 /* Specify the memory areas */
 MEMORY
 {
-FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 2048K
-RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 512K
-Memory_B1(xrw)   : ORIGIN = 0x2007C000, LENGTH = 0x80
-Memory_B2(xrw)   : ORIGIN = 0x2007C080, LENGTH = 0x80
-Memory_B3(xrw)   : ORIGIN = 0x2007C100, LENGTH = 0x17d0 
-Memory_B4(xrw)   : ORIGIN = 0x2007D8D0, LENGTH = 0x17d0
-ITCMRAM (xrw)      : ORIGIN = 0x00000000, LENGTH = 16K
+FLASH (rx)       : ORIGIN = 0x08000000, LENGTH = 2048K
+RAM (xrw)        : ORIGIN = 0x20000000, LENGTH = 512K
+Memory_B1(xrw)   : ORIGIN = 0x2007C000, LENGTH = 0xA0
+Memory_B2(xrw)   : ORIGIN = 0x2007C0A0, LENGTH = 0xA0
+/* Memory_B3(xrw)   : ORIGIN = 0x2007C100, LENGTH = 0x17d0 */
+/* Memory_B4(xrw)   : ORIGIN = 0x2007D8D0, LENGTH = 0x17d0 */
+ITCMRAM (xrw)    : ORIGIN = 0x00000000, LENGTH = 16K
 }
 
 /* Define output sections */
@@ -119,7 +119,7 @@ SECTIONS
   _sidata = LOADADDR(.data);
 
   /* Initialized data sections goes into RAM, load LMA copy after code */
-  .data : 
+  .data :
   {
     . = ALIGN(4);
     _sdata = .;        /* create a global symbol at data start */
@@ -130,7 +130,7 @@ SECTIONS
     _edata = .;        /* define a global symbol at data end */
   } >RAM AT> FLASH
 
-  
+
   /* Uninitialized data section */
   . = ALIGN(4);
   .bss :
@@ -158,7 +158,7 @@ SECTIONS
     . = ALIGN(8);
   } >RAM
 
-  
+
 
   /* Remove information from the standard libraries */
   /DISCARD/ :
@@ -171,8 +171,8 @@ SECTIONS
   .ARM.attributes 0 : { *(.ARM.attributes) }
   .RxDescripSection : { *(.RxDescripSection) } >Memory_B1
   .TxDescripSection : { *(.TxDescripSection) } >Memory_B2
-  .RxBUF : { *(.RxBUF) } >Memory_B3
-  .TxBUF : { *(.TxBUF) } >Memory_B4
+  /* .RxBUF : { *(.RxBUF) } >Memory_B3
+  .TxBUF : { *(.TxBUF) } >Memory_B4 */
 }
 
 
