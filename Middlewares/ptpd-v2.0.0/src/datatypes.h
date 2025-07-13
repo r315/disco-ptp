@@ -9,6 +9,9 @@
  * main program data structure, and all messages structures
  */
 
+#include <stdbool.h>
+#include "dep/constants_dep.h"
+#include "dep/datatypes_dep.h"
 
 /**
  * \brief 5.3.2 The TimeInterval type represents time intervals

@@ -5,6 +5,7 @@
 #include "lwip/err.h"
 #include "lwip/netif.h"
 #include "cmsis_os.h"
+#include "datatypes.h"
 
 #define ETH_PTP_FLAG_TSARU        ((uint32_t)0x00000020)  /*!< Addend Register Update */
 #define ETH_PTP_FLAG_TSITE        ((uint32_t)0x00000010)  /*!< Time Stamp Interrupt Trigger */
@@ -44,11 +45,11 @@ struct ptptime_t {
 /* Exported types ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
 err_t ethernetif_init(struct netif *netif);
-
 void ethernetif_ptp_init(void);
 void ethernetif_ptp_set_pps_output(uint8_t freq);
 void ethernetif_ptp_set_time(struct ptptime_t * timestamp);
 void ethernetif_ptp_get_time(struct ptptime_t * timestamp);
 void ethernetif_ptp_update_offset(struct ptptime_t * timeoffset);
 void ethernetif_ptp_adj_freq(int32_t Adj);
+void ethernetif_ptp_get_tx_timestamp(TimeInternal *time);
 #endif

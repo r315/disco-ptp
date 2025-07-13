@@ -392,16 +392,10 @@ static ssize_t netSend(const octet_t *buf, int16_t  length, TimeInternal *time, 
 
 	if (time != NULL)
 	{
-#if LWIP_PTP
-		time->seconds = p->time_sec;
-		time->nanoseconds = p->time_nsec;
+#if defined(STM32F7)
+        ethernetif_ptp_get_tx_timestamp(time); // get timestamp from hw
 #else
-		/* TODO: use of loopback mode */
-		/*
-		time->seconds = 0;
-		time->nanoseconds = 0;
-		*/
-		getTime(time);
+		getTime(time); // get timestamp from counter
 #endif
 		DBGV("netSend: %d sec %d nsec\n", (int)time->seconds, (int)time->nanoseconds);
 	} else {

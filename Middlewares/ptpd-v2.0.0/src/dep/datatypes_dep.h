@@ -1,6 +1,8 @@
 #ifndef DATATYPES_DEP_H_
 #define DATATYPES_DEP_H_
 
+#include <sys_arch.h>
+
 // Implementation specific datatypes
 
 // 4-bit enumeration
@@ -13,7 +15,7 @@ typedef unsigned char enum8bit_t;
 typedef unsigned short enum16bit_t;
 
 // 4-bit  unsigned integer
-typedef unsigned char uint4bit_t; 
+typedef unsigned char uint4bit_t;
 
 // 48-bit unsigned integer
 typedef struct
@@ -26,7 +28,7 @@ typedef struct
 typedef unsigned char nibble_t;
 
 // 8-bit data without numerical representation
-typedef char octet_t; 
+typedef char octet_t;
 
 // Struct used  to average the offset from master and the one way delay
 //
