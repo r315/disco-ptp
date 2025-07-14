@@ -56,16 +56,10 @@
 #include "lan8742/lan8742.h"
 
 /* Private typedef -----------------------------------------------------------*/
-typedef enum
-{
-  RX_ALLOC_OK       = 0x00,
-  RX_ALLOC_ERROR    = 0x01
-} RxAllocStatusTypeDef;
-
 typedef struct
 {
-  struct pbuf_custom pbuf_custom;
-  uint8_t buff[(ETH_RX_BUF_SIZE + 31) & ~31];
+    struct pbuf_custom pbuf_custom;
+    uint8_t buff[(ETH_RX_BUF_SIZE + 31) & ~31];
 } RxBuff_t;
 /* Private define ------------------------------------------------------------*/
 /* The time to block waiting for input. */
@@ -150,14 +144,13 @@ static uint32_t subsecond_to_nanosecond(uint32_t SubSecondValue)
 
 static void pbuf_free_custom(struct pbuf *p)
 {
-  struct pbuf_custom* custom_pbuf = (struct pbuf_custom*)p;
-  LWIP_MEMPOOL_FREE(RX_POOL, custom_pbuf);
+    struct pbuf_custom* custom_pbuf = (struct pbuf_custom*)p;
+    LWIP_MEMPOOL_FREE(RX_POOL, custom_pbuf);
 
-  if (RxAllocStatus == RX_ALLOC_ERROR)
-  {
-    RxAllocStatus = RX_ALLOC_OK;
-    osSemaphoreRelease(RxPktSemaphore);
-  }
+    if (RxAllocStatus == RX_ALLOC_ERROR){
+        RxAllocStatus = RX_ALLOC_OK;
+        osSemaphoreRelease(RxPktSemaphore);
+    }
 }
 
 /*******************************************************************************
@@ -343,8 +336,7 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 
     pbuf_ref (p);
 
-    do
-    {
+    do {
         HAL_ETH_PTP_InsertTxTimestamp(&EthHandle);
 
         if (HAL_ETH_Transmit_IT (&EthHandle, &TxConfig) == HAL_OK)
@@ -429,10 +421,10 @@ static FlagStatus ll_ptp_get_flag(uint32_t flag)
   */
 static void ll_ptp_set_time_stamp_update(uint32_t Sign, uint32_t SecondValue, uint32_t SubSecondValue)
 {
-  /* Set the PTP Time Update High Register */
-  EthHandle.Instance->PTPTSHUR = SecondValue;
-  /* Set the PTP Time Update Low Register with sign */
-  EthHandle.Instance->PTPTSLUR = Sign | SubSecondValue;
+    /* Set the PTP Time Update High Register */
+    EthHandle.Instance->PTPTSHUR = SecondValue;
+    /* Set the PTP Time Update Low Register with sign */
+    EthHandle.Instance->PTPTSLUR = Sign | SubSecondValue;
 }
 
 /**
@@ -513,17 +505,17 @@ void ethernetif_ptp_init(void)
     ptp_cfg.TimestampAddend = ADJ_FREQ_BASE_ADDEND;
 
     ptp_cfg.Timestamp = ENABLE;
-    ptp_cfg.TimestampUpdate = 0;
+    ptp_cfg.TimestampUpdate = ENABLE;   // Fine update
     ptp_cfg.TimestampAll = ENABLE;
-    ptp_cfg.TimestampV2 = 0;
-    ptp_cfg.TimestampEthernet = 0;
+    ptp_cfg.TimestampV2 = 0;            // Time stamp PTP packet snooping
     ptp_cfg.TimestampIPv6 = ENABLE;
     ptp_cfg.TimestampIPv4 = ENABLE;
-    ptp_cfg.TimestampEvent = 0;
+    ptp_cfg.TimestampEthernet = 0;      // Time stamp snapshot for PTP over ethernet frames enable ????
+    ptp_cfg.TimestampEvent = 0;         // Should be enabled for master????
     ptp_cfg.TimestampMaster = ENABLE;
-    ptp_cfg.TimestampFilter = 0;
-    ptp_cfg.TimestampClockType = 0;
-    ptp_cfg.TimestampRolloverMode = 0;
+    ptp_cfg.TimestampFilter = 0;        // Filter by MAC address
+    ptp_cfg.TimestampClockType = 0;     // Ordinary clock
+    ptp_cfg.TimestampRolloverMode = ETH_PTP_ROLLOVER_MODE;
 
     ptp_cfg.TimestampAddendUpdate = ENABLE;
     ptp_cfg.TimestampUpdateMode = ENABLE;
@@ -557,39 +549,36 @@ void ethernetif_ptp_set_pps_output(uint8_t freq)
 
 void ethernetif_ptp_set_time(struct ptptime_t * timestamp)
 {
-  uint32_t Sign;
-  uint32_t SecondValue;
-  uint32_t NanoSecondValue;
-  uint32_t SubSecondValue;
+    uint32_t Sign;
+    uint32_t SecondValue;
+    uint32_t NanoSecondValue;
+    uint32_t SubSecondValue;
 
-  /* determine sign and correct Second and Nanosecond values */
-  if(timestamp->tv_sec < 0 || (timestamp->tv_sec == 0 && timestamp->tv_nsec < 0))
-  {
-    Sign = ETH_PTP_NegativeTime;
-    SecondValue = -timestamp->tv_sec;
-    NanoSecondValue = -timestamp->tv_nsec;
-  }
-  else
-  {
-    Sign = ETH_PTP_PositiveTime;
-    SecondValue = timestamp->tv_sec;
-    NanoSecondValue = timestamp->tv_nsec;
-  }
-  /* convert nanosecond to subseconds */
-  SubSecondValue = subsecond_to_nanosecond(NanoSecondValue);
-  /* Write the offset (positive or negative) in the Time stamp update high and low registers. */
-  ll_ptp_set_time_stamp_update(Sign, SecondValue, SubSecondValue);
-  /* Set Time stamp control register bit 2 (Time stamp init). */
-  EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
-  /* The Time stamp counter starts operation as soon as it is initialized
-   * with the value written in the Time stamp update register. */
-  while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTI) == SET);
+    /* determine sign and correct Second and Nanosecond values */
+    if(timestamp->tv_sec < 0 || (timestamp->tv_sec == 0 && timestamp->tv_nsec < 0)) {
+        Sign = ETH_PTP_NegativeTime;
+        SecondValue = -timestamp->tv_sec;
+        NanoSecondValue = -timestamp->tv_nsec;
+    } else {
+        Sign = ETH_PTP_PositiveTime;
+        SecondValue = timestamp->tv_sec;
+        NanoSecondValue = timestamp->tv_nsec;
+    }
+    /* convert nanosecond to subseconds */
+    SubSecondValue = subsecond_to_nanosecond(NanoSecondValue);
+    /* Write the offset (positive or negative) in the Time stamp update high and low registers. */
+    ll_ptp_set_time_stamp_update(Sign, SecondValue, SubSecondValue);
+    /* Set Time stamp control register bit 2 (Time stamp init). */
+    EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
+    /* The Time stamp counter starts operation as soon as it is initialized
+    * with the value written in the Time stamp update register. */
+    while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTI) == SET);
 }
 
 void ethernetif_ptp_get_time(struct ptptime_t * timestamp)
 {
-  timestamp->tv_nsec = subsecond_to_nanosecond(EthHandle.Instance->PTPTSLR);
-  timestamp->tv_sec = EthHandle.Instance->PTPTSHR;
+    timestamp->tv_nsec = subsecond_to_nanosecond(EthHandle.Instance->PTPTSLR);
+    timestamp->tv_sec = EthHandle.Instance->PTPTSHR;
 }
 
 void ethernetif_ptp_update_offset(struct ptptime_t * timeoffset)
@@ -790,8 +779,7 @@ void HAL_ETH_RxAllocateCallback(uint8_t **buff)
 {
     struct pbuf_custom *p = LWIP_MEMPOOL_ALLOC(RX_POOL);
 
-    if (p)
-    {
+    if (p) {
         /* Get the buff from the struct pbuf address. */
         *buff = (uint8_t *)p + offsetof(RxBuff_t, buff);
         p->custom_free_function = pbuf_free_custom;
@@ -799,9 +787,7 @@ void HAL_ETH_RxAllocateCallback(uint8_t **buff)
         * This must be performed whenever a buffer's allocated because it may be
         * changed by lwIP or the app, e.g., pbuf_free decrements ref. */
         pbuf_alloced_custom(PBUF_RAW, 0, PBUF_REF, p, *buff, ETH_RX_BUF_SIZE);
-    }
-    else
-    {
+    } else {
         RxAllocStatus = RX_ALLOC_ERROR;
         *buff = NULL;
     }
@@ -820,13 +806,10 @@ void HAL_ETH_RxLinkCallback(void **pStart, void **pEnd, uint8_t *buff, uint16_t 
     p->len = Length;
 
     /* Chain the buffer. */
-    if (!*ppStart)
-    {
+    if (!*ppStart) {
         /* The first buffer of the packet. */
         *ppStart = p;
-    }
-    else
-    {
+    } else {
         /* Chain the buffer to the end of the packet. */
         (*ppEnd)->next = p;
     }
