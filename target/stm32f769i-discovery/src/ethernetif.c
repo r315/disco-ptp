@@ -135,11 +135,20 @@ static const lan8742_IOCtx_t  LAN8742_IOCtx = {
     ETH_PHY_IO_GetTick
 };
 
+/**
+ * @brief Convert subsecond to nanosecond when using binary rollover.
+ * In this mode subsecond counts from 0 to 0x7FFFFFFF
+ *
+ * @param SubSecondValue
+ * @return
+ */
 static uint32_t subsecond_to_nanosecond(uint32_t SubSecondValue)
 {
-  uint64_t val = SubSecondValue * 1000000000ll;
-  val >>= 31;
-  return val;
+    #if ETH_PTP_ROLLOVER_MODE
+    return SubSecondValue;
+    #else
+    return ((uint64_t)SubSecondValue * 1000000000UL) >> 31;
+    #endif
 }
 
 static void pbuf_free_custom(struct pbuf *p)

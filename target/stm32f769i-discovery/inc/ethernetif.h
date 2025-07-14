@@ -18,11 +18,38 @@
 #define ETH_PTP_PositiveTime      ((uint32_t)0x00000000)  /*!< Positive time value */
 #define ETH_PTP_NegativeTime      ((uint32_t)0x80000000)  /*!< Negative time value */
 
-/* Examples of subsecond increment and addend values using SysClk = 200 MHz
+#define ETH_PTP_ROLLOVER_DIGITAL    1
 
-   Addend * Increment = 2^63 / SysClk
+#if ETH_PTP_ROLLOVER_DIGITAL
+/**
+ * With digital rollover (TSSSR=1), it is recommended not to use the PPS output with a
+ * frequency other than 1 Hz as it would have irregular waveforms (though its average frequency
+ * would always be correct during any one-second window).
+ *
+ * Addend * increment = (2^32 * 10^9) / SysClk
+ *
+ * ptp_tick = Increment
+
+   +-----------+-----------+------------+
+   | ptp tick  | Increment | Addend     |
+   +-----------+-----------+------------+
+   | 20.0 ns   |    20     | 0x40000000 |
+   +-----------+-----------+------------+
+ * */
+
+#define ADJ_FREQ_BASE_ADDEND    0x40000000
+#define ADJ_FREQ_BASE_INCREMENT 20
+#define ETH_PTP_ROLLOVER_MODE   1  /* subsecond counter counts to 1000 000 000 */
+
+#else
+/*
+    Example of subsecond increment and addend values
+    for binary rollover (TSSSR = 0) using SysClk = 200 MHz
+
+   Addend * Increment = 2^(32 + 31) / SysClk
 
    ptp_tick = Increment * 10^9 / 2^31
+   <=> ptp_tick = Increment * 0,467
 
    +-----------+-----------+------------+
    | ptp tick  | Increment | Addend     |
@@ -31,9 +58,12 @@
    +-----------+-----------+------------+
 */
 
-#define ADJ_FREQ_BASE_ADDEND      0x3FECD300
-#define ADJ_FREQ_BASE_INCREMENT   43
+#define ADJ_FREQ_BASE_ADDEND    0x3FECD300
+#define ADJ_FREQ_BASE_INCREMENT 43
+#define ETH_PTP_ROLLOVER_MODE   1
+#define ETH_PTP_ROLLOVER_MODE   0  /* subsecond counter counts to 2147483648 (0x8000 0000)*/
 
+#endif
 
 /* Within 'USER CODE' section, code will be kept by default at each generation */
 /* USER CODE BEGIN 0 */
