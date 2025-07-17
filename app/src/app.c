@@ -34,10 +34,12 @@ static int cmdDate(int argc, char **argv)
     time_t seconds1970;
     struct tm now;
     struct ptptime_t ptptime;
+    int32_t time;
 
     const char *days[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
     const char *months[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
+    if(argc < 2){
     // Get the ethernet time values.
     ethernetif_ptp_get_time(&ptptime);
 
@@ -52,6 +54,15 @@ static int cmdDate(int argc, char **argv)
     LOG_PRINT("%s %s %02d %02d:%02d:%02d UTC %4d",
                    days[now.tm_wday], months[now.tm_mon], now.tm_mday,
                    now.tm_hour, now.tm_min, now.tm_sec, 1900 + now.tm_year);
+    }else{
+        if(CLI_GET_INT_PARM(1, time)){
+            app_ethernet_set_system_time(time);
+        }else{
+            return CLI_BAD_PARAM;
+        }
+    }
+
+
     return CLI_OK;
 }
 

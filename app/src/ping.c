@@ -110,7 +110,7 @@ int do_ping(ip_addr_t *addr, u16_t count)
             sys_check_timeouts();  // Process lwIP timers
             if (ping_result == 0)
                 break;
-            sys_msleep(10);
+            sys_msleep(1000);
         }
 
         if (ping_result == -1){
