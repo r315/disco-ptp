@@ -82,4 +82,5 @@ void ethernetif_ptp_get_time(struct ptptime_t * timestamp);
 void ethernetif_ptp_update_offset(struct ptptime_t * timeoffset);
 void ethernetif_ptp_adj_freq(int32_t Adj);
 void ethernetif_ptp_get_tx_timestamp(TimeInternal *time);
+void ethernetif_ptp_get_rx_timestamp(TimeInternal *time);
 #endif

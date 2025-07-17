@@ -309,9 +309,8 @@ static ssize_t netRecv(octet_t *buf, TimeInternal *time, BufQueue *msgQueue)
 
 	if (time != NULL)
 	{
-#if LWIP_PTP
-		time->seconds = p->time_sec;
-		time->nanoseconds = p->time_nsec;
+#if defined(STM32F7)
+        ethernetif_ptp_get_rx_timestamp(time); // get timestamp from hw
 #else
 		getTime(time);
 #endif

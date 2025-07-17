@@ -674,7 +674,7 @@ void ethernetif_ptp_adj_freq(int32_t Adj)
 }
 
 /**
- * @brief get timestamp of last sent package
+ * @brief get timestamp of last sent packet
  * @param time
  */
 void ethernetif_ptp_get_tx_timestamp(TimeInternal *time)
@@ -685,6 +685,15 @@ void ethernetif_ptp_get_tx_timestamp(TimeInternal *time)
     time->seconds = EthHandle.TxTimestamp.TimeStampHigh;
 }
 
+/**
+ * @brief get timestamp of last received packet
+ * @param time
+ */
+void ethernetif_ptp_get_rx_timestamp(TimeInternal *time)
+{
+    time->nanoseconds = subsecond_to_nanosecond(EthHandle.RxDescList.TimeStamp.TimeStampLow);
+    time->seconds = EthHandle.RxDescList.TimeStamp.TimeStampHigh;
+}
 /**
   * @brief  RMII interface watchdog thread
   * @param  argument
