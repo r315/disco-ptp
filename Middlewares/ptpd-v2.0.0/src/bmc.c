@@ -52,6 +52,7 @@ void initData(PtpClock *ptpClock)
 
 	ptpClock->defaultDS.domainNumber = rtOpts->domainNumber;
 	ptpClock->defaultDS.slaveOnly = rtOpts->slaveOnly;
+    ptpClock->defaultDS.transportSpecific = DEFAULT_TRANSPORT_SPECIFIC;
 
 	/* Port configuration data set */
 

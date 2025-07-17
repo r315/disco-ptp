@@ -278,6 +278,7 @@ typedef struct
     uint8_t priority2;              /**< spec 7.6.2.3 */
     uint8_t domainNumber;
     bool slaveOnly;
+    bool transportSpecific;
 } DefaultDS;
 
 

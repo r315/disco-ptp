@@ -29,7 +29,7 @@ void msgUnpackHeader(const octet_t *buf, MsgHeader *header)
 /* Pack header message */
 void msgPackHeader(const PtpClock *ptpClock, octet_t *buf)
 {
-	nibble_t transport = 0x80; //(spec annex D)
+	nibble_t transport = ptpClock->defaultDS.transportSpecific << 4; //(spec annex D)
 	*(uint8_t*)(buf + 0) = transport;
 	*(uint4bit_t*)(buf  + 1) = ptpClock->portDS.versionNumber;
 	*(uint8_t*)(buf + 4) = ptpClock->defaultDS.domainNumber;
