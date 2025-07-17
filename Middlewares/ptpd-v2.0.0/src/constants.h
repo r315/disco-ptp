@@ -20,6 +20,12 @@
 #define IPV4							2
 #define PROTOCOL						IPV4		//IEEE802_3 or IPv4
 
+#if PROTOCOL == IEEE802_3
+#define PTP_MCAST_MAC "\x01\x1b\x19\x0\x0\x0"  /* PTP Multicast MAC (IEEE 1588-2008, L2 transport) */
+#else
+#define PTP_MCAST_MAC (const uint8_t*)"\x01\x00\x5e\x00\x01\x81"  /* PTP Multicast MAC for 224.0.1.129 (L4 transport) */
+#endif
+
 /* Implementation specific constants */
 #define DEFAULT_INBOUND_LATENCY         0       /* in nsec */	//	��վ�ӳ�
 #define DEFAULT_OUTBOUND_LATENCY        0       /* in nsec */	//	��վ�ӳ�

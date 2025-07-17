@@ -156,8 +156,8 @@ static void pbuf_free_custom(struct pbuf *p)
     struct pbuf_custom* custom_pbuf = (struct pbuf_custom*)p;
     LWIP_MEMPOOL_FREE(RX_POOL, custom_pbuf);
 
-    if (RxAllocStatus == RX_ALLOC_ERROR){
-        RxAllocStatus = RX_ALLOC_OK;
+    if (RxAllocStatus == 1){
+        RxAllocStatus = 0;
         osSemaphoreRelease(RxPktSemaphore);
     }
 }
@@ -243,10 +243,8 @@ static void low_level_init_phy(struct netif *netif)
   */
 static void low_level_init(struct netif *netif)
 {
-    uint8_t macaddress[6]= { MAC_ADDR0, MAC_ADDR1, MAC_ADDR2, MAC_ADDR3, MAC_ADDR4, MAC_ADDR5 };
-
     EthHandle.Instance = ETH;
-    EthHandle.Init.MACAddr = macaddress;
+    EthHandle.Init.MACAddr = netif->hwaddr;
     EthHandle.Init.MediaInterface = ETH_MEDIA_INTERFACE_RMII;
     EthHandle.Init.RxDesc = DMARxDscrTab;
     EthHandle.Init.TxDesc = DMATxDscrTab;
@@ -254,17 +252,6 @@ static void low_level_init(struct netif *netif)
 
     /* configure ethernet peripheral (GPIOs, clocks, MAC, DMA) */
     HAL_ETH_Init(&EthHandle);
-
-    /* set netif MAC hardware address length */
-    netif->hwaddr_len = ETHARP_HWADDR_LEN;
-
-    /* set netif MAC hardware address */
-    netif->hwaddr[0] =  MAC_ADDR0;
-    netif->hwaddr[1] =  MAC_ADDR1;
-    netif->hwaddr[2] =  MAC_ADDR2;
-    netif->hwaddr[3] =  MAC_ADDR3;
-    netif->hwaddr[4] =  MAC_ADDR4;
-    netif->hwaddr[5] =  MAC_ADDR5;
 
     /* set netif maximum transfer unit */
     netif->mtu = ETH_MAX_PAYLOAD;
@@ -385,11 +372,17 @@ static struct pbuf * low_level_input(struct netif *netif)
 {
     struct pbuf *p = NULL;
 
-    if(RxAllocStatus == RX_ALLOC_OK) {
+    if(RxAllocStatus == 0) {
         HAL_ETH_ReadData(&EthHandle, (void **)&p);
     }
 
     return p;
+}
+
+static void ll_set_mcast_mac(const uint8_t* Addr)
+{
+    EthHandle.Instance->MACA0HR = ETH_MACA1HR_AE | ((uint32_t)Addr[5U] << 8U) | (uint32_t)Addr[4U];
+    EthHandle.Instance->MACA0LR = ((uint32_t)Addr[3U] << 24U) | ((uint32_t)Addr[2U] << 16U) | ((uint32_t)Addr[1U] << 8U) | Addr[0U];
 }
 
 /**
@@ -492,6 +485,15 @@ err_t ethernetif_init(struct netif *netif)
 
     netif->name[0] = IFNAME0;
     netif->name[1] = IFNAME1;
+    /* set netif MAC hardware address length */
+    netif->hwaddr_len = ETHARP_HWADDR_LEN;
+    /* set netif MAC hardware address */
+    netif->hwaddr[0] =  MAC_ADDR0;
+    netif->hwaddr[1] =  MAC_ADDR1;
+    netif->hwaddr[2] =  MAC_ADDR2;
+    netif->hwaddr[3] =  MAC_ADDR3;
+    netif->hwaddr[4] =  MAC_ADDR4;
+    netif->hwaddr[5] =  MAC_ADDR5;
 
     /* We directly use etharp_output() here to save a function call.
     * You can instead declare your own function an call etharp_output()
@@ -513,23 +515,25 @@ void ethernetif_ptp_init(void)
     ptp_cfg.TimestampSubsecondInc = ADJ_FREQ_BASE_INCREMENT;
     ptp_cfg.TimestampAddend = ADJ_FREQ_BASE_ADDEND;
 
-    ptp_cfg.Timestamp = ENABLE;
-    ptp_cfg.TimestampUpdate = ENABLE;   // Fine update
-    ptp_cfg.TimestampAll = ENABLE;
-    ptp_cfg.TimestampV2 = 0;            // Time stamp PTP packet snooping
-    ptp_cfg.TimestampIPv6 = ENABLE;
-    ptp_cfg.TimestampIPv4 = ENABLE;
-    ptp_cfg.TimestampEthernet = 0;      // Time stamp snapshot for PTP over ethernet frames enable ????
-    ptp_cfg.TimestampEvent = 0;         // Should be enabled for master????
-    ptp_cfg.TimestampMaster = ENABLE;
-    ptp_cfg.TimestampFilter = 0;        // Filter by MAC address
-    ptp_cfg.TimestampClockType = 0;     // Ordinary clock
+    ptp_cfg.Timestamp           = ENABLE;
+    ptp_cfg.TimestampUpdate     = ENABLE;   // Fine update
+    ptp_cfg.TimestampAll        = DISABLE;
+    ptp_cfg.TimestampV2         = ENABLE;   // PTPv2 only
+    ptp_cfg.TimestampIPv6       = DISABLE;
+    ptp_cfg.TimestampIPv4       = ENABLE;
+    ptp_cfg.TimestampEthernet   = DISABLE;  // Stamp L4 messages only
+    ptp_cfg.TimestampEvent      = DISABLE;  // Should be enabled for master????
+    ptp_cfg.TimestampMaster     = ENABLE;
+    ptp_cfg.TimestampFilter     = DISABLE;  // Filter by MAC address, valid for L2
+    ptp_cfg.TimestampClockType  = 0;        // Ordinary clock
     ptp_cfg.TimestampRolloverMode = ETH_PTP_ROLLOVER_MODE;
 
     ptp_cfg.TimestampAddendUpdate = ENABLE;
     ptp_cfg.TimestampUpdateMode = ENABLE;
 
     HAL_ETH_PTP_SetConfig(&EthHandle, &ptp_cfg);
+
+    ll_set_mcast_mac(PTP_MCAST_MAC);
 }
 
 /**
@@ -771,7 +775,7 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef *heth)
   */
 void HAL_ETH_RxCpltCallback(ETH_HandleTypeDef *heth)
 {
-    osSemaphoreRelease(RxPktSemaphore);
+        osSemaphoreRelease(RxPktSemaphore);
 }
 
 void HAL_ETH_TxCpltCallback(ETH_HandleTypeDef *heth)
@@ -797,7 +801,7 @@ void HAL_ETH_RxAllocateCallback(uint8_t **buff)
         * changed by lwIP or the app, e.g., pbuf_free decrements ref. */
         pbuf_alloced_custom(PBUF_RAW, 0, PBUF_REF, p, *buff, ETH_RX_BUF_SIZE);
     } else {
-        RxAllocStatus = RX_ALLOC_ERROR;
+        RxAllocStatus = 1;
         *buff = NULL;
     }
 }
