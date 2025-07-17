@@ -253,13 +253,6 @@ static void low_level_init(struct netif *netif)
     /* configure ethernet peripheral (GPIOs, clocks, MAC, DMA) */
     HAL_ETH_Init(&EthHandle);
 
-    /* set netif maximum transfer unit */
-    netif->mtu = ETH_MAX_PAYLOAD;
-
-    /* device capabilities */
-    /* don't set NETIF_FLAG_ETHARP if this device is not an ethernet one */
-    netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP;
-
     /* Initialize the RX POOL */
     LWIP_MEMPOOL_INIT(RX_POOL);
 
@@ -501,6 +494,18 @@ err_t ethernetif_init(struct netif *netif)
     * is available...) */
     netif->output = etharp_output;
     netif->linkoutput = low_level_output;
+
+    /* set netif maximum transfer unit */
+    netif->mtu = ETH_MAX_PAYLOAD;
+
+    /* device capabilities */
+    /* don't set NETIF_FLAG_ETHARP if this device is not an ethernet one */
+    netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP;
+
+#ifdef LWIP_IGMP
+    // Accept multicast traffic.
+    netif->flags |= NETIF_FLAG_IGMP;
+#endif
 
     /* initialize the hardware */
     low_level_init(netif);

@@ -170,6 +170,7 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 	struct in_addr netAddr;
 	ip_addr_t interfaceAddr;
 	char addrStr[NET_ADDRESS_LENGTH];
+    err_t res;
 
 	DBG("netInit\n");
 
@@ -184,7 +185,9 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 			ERROR("netInit: Failed to find interface address\n");
 			goto fail01;
 	}
-
+#if PROTOCOL == IEEE802_3
+    // TODO: Implement for L2 only
+#else
 	/* Open lwIP raw udp interfaces for the event port. */
 	netPath->eventPcb = udp_new();
 	if (NULL == netPath->eventPcb)
@@ -215,8 +218,8 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 
 	/* Join multicast group (for receiving) on specified interface */
 
-	printf("Join group: %s, %d\n",DEFAULT_PTP_DOMAIN_ADDRESS,
-		   igmp_joingroup(&interfaceAddr, (ip_addr_t *)&netAddr));
+    res = igmp_joingroup(&interfaceAddr, (ip_addr_t *)&netAddr);
+	DBGVV("Join group: %s, %d\n",DEFAULT_PTP_DOMAIN_ADDRESS, res);
 
 	/* Init Peer multicast IP address */
 	memcpy(addrStr, PEER_PTP_DOMAIN_ADDRESS, NET_ADDRESS_LENGTH);
@@ -228,14 +231,12 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 	netPath->peerMulticastAddr = netAddr.s_addr;
 
 	/* Join peer multicast group (for receiving) on specified interface */
-	printf("Join group: %s, %d\n",PEER_PTP_DOMAIN_ADDRESS,
-		   igmp_joingroup(&interfaceAddr, (ip_addr_t *) &netAddr));
-
+    res = igmp_joingroup(&interfaceAddr, (ip_addr_t *) &netAddr);
+	DBGVV("Join group: %s, %d\n",PEER_PTP_DOMAIN_ADDRESS, res);
 
 	/* Multicast send only on specified interface. */
-//TODO:FIX
-//netPath->eventPcb->multicast_ip.addr = netPath->multicastAddr;
-//netPath->generalPcb->multicast_ip.addr = netPath->multicastAddr;
+    netPath->eventPcb->mcast_ip4.addr = netPath->multicastAddr;
+    netPath->generalPcb->mcast_ip4.addr = netPath->multicastAddr;
 
 	/* Establish the appropriate UDP bindings/connections for events. */
 	udp_recv(netPath->eventPcb, netRecvEventCallback, netPath);
@@ -249,7 +250,7 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 
 	/* Return a success code. */
 	return TRUE;
-
+#endif
 fail04:
 	udp_remove(netPath->generalPcb);
 fail03:
@@ -380,7 +381,7 @@ static ssize_t netSend(const octet_t *buf, int16_t  length, TimeInternal *time, 
 
 	/* send the buffer. */
 #if PROTOCOL == IEEE802_3
-	result = raw_sendto(p);
+	result = raw_sendto(pcb, p, (void *)addr);
 #else
 	result = udp_sendto(pcb, p, (void *)addr, pcb->local_port);
 #endif

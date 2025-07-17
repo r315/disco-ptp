@@ -121,6 +121,7 @@ a lot of data that needs to be copied, this should be set high. */
 #define LWIP_ICMP                       1
 #define LWIP_RAW                        1
 #define LWIP_IGMP                       1
+#define LWIP_MULTICAST_TX_OPTIONS       1
 
 
 /* ---------- DHCP options ---------- */

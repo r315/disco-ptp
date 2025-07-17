@@ -38,6 +38,7 @@
 #include "lwip/inet.h"
 #include "lwip/mem.h"
 #include "lwip/udp.h"
+#include "lwip/raw.h"
 #include "lwip/igmp.h"
 #include "lwip/arch.h"
 #include "cmsis_os.h"
