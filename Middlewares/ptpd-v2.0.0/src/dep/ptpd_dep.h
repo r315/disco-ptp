@@ -3,28 +3,39 @@
 
 /** \name Debug messages */
 /**\{*/
-#define PTPD_DBGV
 
 #ifdef PTPD_DBGVV
 #define PTPD_DBGV
-#define PTPD_DBG
 #define PTPD_ERR
+#define PTPD_DBG
 #define DBGVV(...) printf("(V) " __VA_ARGS__)
 #else
 #define DBGVV(...)
 #endif
 
 #ifdef PTPD_DBGV
-#define PTPD_DBG
 #define PTPD_ERR
-#define DBGV(...)  { TimeInternal tmpTime; getTime(&tmpTime); printf("(d %d.%09d) ", (int)tmpTime.seconds, (int)tmpTime.nanoseconds); printf(__VA_ARGS__); }
+#define PTPD_DBG
+#define DBGV(...) DBG_PRINT("(d %d.%09d) ", __VA_ARGS__)
 #else
 #define DBGV(...)
 #endif
 
+#ifdef PTPD_ERR
+#define PTPD_DBG
+#define ERROR(...) DBG_PRINT("(E %d.%09d) ", __VA_ARGS__)
+#else
+#define ERROR(...)
+#endif
+
 #ifdef PTPD_DBG
-#define PTPD_ERR
-#define DBG(...)  { TimeInternal tmpTime; getTime(&tmpTime); printf("(D %d.%09d) ", (int)tmpTime.seconds, (int)tmpTime.nanoseconds); printf(__VA_ARGS__); }
+#define DBG(...) DBG_PRINT("(D %d.%09d) ", __VA_ARGS__)
+#define DBG_PRINT(fmt, ...) { \
+    TimeInternal tmpTime; \
+    getTime(&tmpTime); \
+    printf(fmt, (int)tmpTime.seconds, (int)tmpTime.nanoseconds); \
+    printf(__VA_ARGS__); \
+}
 #else
 #define DBG(...)
 #endif
@@ -32,12 +43,7 @@
 
 /** \name System messages */
 /**\{*/
-#ifdef PTPD_ERR
-#define ERROR(...)  { TimeInternal tmpTime; getTime(&tmpTime); printf("(E %d.%09d) ", (int)tmpTime.seconds, (int)tmpTime.nanoseconds); printf(__VA_ARGS__); }
-/* #define ERROR(...)  { printf("(E) "); printf(__VA_ARGS__); } */
-#else
-#define ERROR(...)
-#endif
+
 /** \}*/
 
 /** \name Endian corrections */
