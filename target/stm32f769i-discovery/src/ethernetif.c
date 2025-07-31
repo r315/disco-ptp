@@ -555,8 +555,9 @@ void ethernetif_ptp_set_pps_output(uint8_t freq)
 {
     GPIO_InitTypeDef gpio_init;
 
-    ETH->PTPPPSCR = freq & 0x0f;
-
+    // Configure frequency
+    EthHandle.Instance->PTPPPSCR = freq & 0x0f;
+    // Configure PG8 pin
     gpio_init.Pin = GPIO_PIN_5;  //LL_GPIO_PIN_8
     gpio_init.Mode = GPIO_MODE_AF_PP;
     gpio_init.Pull = GPIO_NOPULL;
@@ -587,7 +588,7 @@ void ethernetif_ptp_set_time(struct ptptime_t * timestamp)
     /* Write the offset (positive or negative) in the Time stamp update high and low registers. */
     ll_ptp_set_time_stamp_update(Sign, SecondValue, SubSecondValue);
     /* Set Time stamp control register bit 2 (Time stamp init). */
-    EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI;
+    EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSSTI | ETH_PTPTSCR_TSITE;
     /* The Time stamp counter starts operation as soon as it is initialized
     * with the value written in the Time stamp update register. */
     while(ll_ptp_get_flag(ETH_PTP_FLAG_TSSTI) == SET);

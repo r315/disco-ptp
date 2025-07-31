@@ -21,7 +21,8 @@ FEATURES += ENABLE_DHCP
 #######################################
 
 BUILD_DIR 		:=build
-TARGET_PATH 	=$(CURDIR)
+TARGET_PATH 	=.
+#$(CURDIR)
 
 APP_PATH        =$(TARGET_PATH)/../../app
 MIDDLEWARE_PATH =$(TARGET_PATH)/../../Middlewares

@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
-  * @file    LwIP/LwIP_HTTP_Server_Socket_RTOS/Src/stm32f7xx_it.c 
+  * @file    LwIP/LwIP_HTTP_Server_Socket_RTOS/Src/stm32f7xx_it.c
   * @author  MCD Application Team
   * @brief   Main Interrupt Service Routines.
-  *          This file provides template for all exceptions handler and 
-  *          peripherals interrupt service routine.   
+  *          This file provides template for all exceptions handler and
+  *          peripherals interrupt service routine.
   ******************************************************************************
   * @attention
   *
@@ -16,8 +16,8 @@
   *
   *        http://www.st.com/software_license_agreement_liberty_v2
   *
-  * Unless required by applicable law or agreed to in writing, software 
-  * distributed under the License is distributed on an "AS IS" BASIS, 
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   * See the License for the specific language governing permissions and
   * limitations under the License.
@@ -136,7 +136,16 @@ void SysTick_Handler(void)
   */
 void ETH_IRQHandler(void)
 {
+  uint32_t ts_flag = READ_REG(EthHandle.Instance->PTPTSSR);
+
   HAL_ETH_IRQHandler(&EthHandle);
+  if(ts_flag & (1 << 1)){  // ETH_PTPTSSR_TSTTR
+    BSP_LED_Toggle(LED1);
+    // Enable alive led interrupt every second
+    EthHandle.Instance->PTPTTHR = EthHandle.Instance->PTPTSHR + 1;
+    EthHandle.Instance->PTPTTLR = 0;
+    EthHandle.Instance->PTPTSCR |= ETH_PTPTSCR_TSITE;
+  }
 }
 
 /**

@@ -63,8 +63,9 @@ static void BSP_Config(void);
 static void MPU_Config(void);
 static void CPU_CACHE_Enable(void);
 static void Error_Handler(void);
+#if ENABLE_ALIVE_LED
 static void AliveTread(void const *ptr);
-
+#endif
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -100,16 +101,17 @@ int main(void)
 
   osThreadCreate (osThread(Start), NULL);
 
+#if ENABLE_ALIVE_LED
   osThreadDef(AliveLed, AliveTread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
   osThreadCreate (osThread(AliveLed), NULL);
-
+#endif
   /* Start scheduler */
   osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
   for( ;; );
 }
-
+#if ENABLE_ALIVE_LED
 static void AliveTread(void const *ptr)
 {
 	while(1){
@@ -119,7 +121,7 @@ static void AliveTread(void const *ptr)
 		vTaskDelay(900);
 	}
 }
-
+#endif
 /**
   * @brief  Start Thread
   * @param  argument not used
