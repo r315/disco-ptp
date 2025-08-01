@@ -188,4 +188,8 @@ osThreadId ptpd_init(void);
 
 void ptpd_stats(void);
 
+void ptpd_start(void);
+
+void ptpd_stop(void);
+
 #endif /* PTPD_H_*/

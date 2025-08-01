@@ -169,3 +169,15 @@ void ptpd_stats(void)
 {
     ptpd_displayStats(&ptpClock);
 }
+
+void ptpd_start(void)
+{
+    ptpd_init();
+}
+
+void ptpd_stop(void)
+{
+    toState(&ptpClock, PTP_SHUTDOWN);
+    osThreadTerminate(PTPTaskHandle);
+    LOG_INF("PTPD: Shutdown");
+}

@@ -131,8 +131,6 @@ static int cmdPing(int argc, char **argv)
     return CLI_OK;
 }
 
-static osThreadId ptpTaskHandle;
-
 static int cmdPtpd(int argc, char **argv)
 {
     if(argc < 2){
@@ -144,12 +142,12 @@ static int cmdPtpd(int argc, char **argv)
     }
 
     if(CLI_IS_PARM(1, "start")){
-        ptpTaskHandle = ptpd_init();
+        ptpd_start();
         ethernetif_ptp_set_pps_output(0);
     }
 
     if(CLI_IS_PARM(1, "stop")){
-        osThreadTerminate(ptpTaskHandle);
+        ptpd_stop();
     }
 
     if(CLI_IS_PARM(1, "status")){

@@ -173,6 +173,7 @@ void initTimer(void);
 void timerStop(int32_t);
 void timerStart(int32_t,  uint32_t);
 bool timerExpired(int32_t);
+void shutdownTimer(void);
 /** \}*/
 
 

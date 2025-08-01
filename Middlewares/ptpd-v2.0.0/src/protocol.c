@@ -41,6 +41,7 @@ static char *stateString(uint8_t state)
 		case PTP_PASSIVE: return (char *) "PTP_PASSIVE";
 		case PTP_UNCALIBRATED: return (char *) "PTP_UNCALIBRATED";
 		case PTP_SLAVE: return (char *) "PTP_SLAVE";
+        case PTP_SHUTDOWN: return (char *) "PTP_SHUTDOWN";
 		default: break;
 	}
 	return (char *) "UNKNOWN";
@@ -236,6 +237,12 @@ static bool doInit(PtpClock *ptpClock)
 		msgPackHeader(ptpClock, ptpClock->msgObuf);
 		return TRUE;
 	}
+}
+
+static bool doShutdown(PtpClock *ptpClock)
+{
+    shutdownTimer();
+    netShutdown(&ptpClock->netPath);
 }
 
 /* Handle actions and events for 'port_state' */
@@ -438,6 +445,10 @@ void doState(PtpClock *ptpClock)
 			handle(ptpClock);
 			issueDelayReqTimerExpired(ptpClock);
 
+			break;
+
+        case PTP_SHUTDOWN:
+            doShutdown(ptpClock);
 			break;
 
 		default:

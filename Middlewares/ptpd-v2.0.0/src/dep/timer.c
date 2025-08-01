@@ -76,3 +76,15 @@ bool timerExpired(int32_t index)
 
 	return TRUE;
 }
+
+void shutdownTimer(void)
+{
+    int32_t i;
+
+	DBG("%s\n", __func__);
+
+    for (i = 0; i < TIMER_ARRAY_SIZE; i++)
+    {
+		timerStop(i);
+	}
+}
