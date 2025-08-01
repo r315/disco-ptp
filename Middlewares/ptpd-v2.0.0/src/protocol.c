@@ -239,7 +239,7 @@ static bool doInit(PtpClock *ptpClock)
 	}
 }
 
-static bool doShutdown(PtpClock *ptpClock)
+static void doShutdown(PtpClock *ptpClock)
 {
     shutdownTimer();
     netShutdown(&ptpClock->netPath);
