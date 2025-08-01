@@ -13,37 +13,12 @@ static PtpClock ptpClock;
 static RunTimeOpts rtOpts;
 static ForeignMasterRecord ptpForeignRecords[DEFAULT_MAX_FOREIGN_RECORDS];
 
-__IO uint32_t PTPTimer = 0;
-
 static void ptpd_thread(void const *arg)
 {
-	// Initialize run-time options to default values.
-	rtOpts.announceInterval = DEFAULT_ANNOUNCE_INTERVAL;
-	rtOpts.syncInterval = DEFAULT_SYNC_INTERVAL;
-	rtOpts.clockQuality.clockAccuracy = DEFAULT_CLOCK_ACCURACY;
-	rtOpts.clockQuality.clockClass = DEFAULT_CLOCK_CLASS;
-	rtOpts.clockQuality.offsetScaledLogVariance = DEFAULT_CLOCK_VARIANCE; /* 7.6.3.3 */
-	rtOpts.priority1 = DEFAULT_PRIORITY1;
-	rtOpts.priority2 = DEFAULT_PRIORITY2;
-	rtOpts.domainNumber = DEFAULT_DOMAIN_NUMBER;
-	rtOpts.slaveOnly = SLAVE_ONLY;
-	rtOpts.currentUtcOffset = DEFAULT_UTC_OFFSET;
-	rtOpts.servo.noResetClock = DEFAULT_NO_RESET_CLOCK;
-	rtOpts.servo.noAdjust = NO_ADJUST;
-	rtOpts.inboundLatency.nanoseconds = DEFAULT_INBOUND_LATENCY;
-	rtOpts.outboundLatency.nanoseconds = DEFAULT_OUTBOUND_LATENCY;
-	rtOpts.servo.sDelay = DEFAULT_DELAY_S;
-	rtOpts.servo.sOffset = DEFAULT_OFFSET_S;
-	rtOpts.servo.ap = DEFAULT_AP;
-	rtOpts.servo.ai = DEFAULT_AI;
-	rtOpts.maxForeignRecords = sizeof(ptpForeignRecords) / sizeof(ptpForeignRecords[0]);
-	rtOpts.stats = PTP_TEXT_STATS;
-	rtOpts.delayMechanism = DEFAULT_DELAY_MECHANISM;
-
 	// Initialize run time options.
-	if (ptpdStartup(&ptpClock, &rtOpts, ptpForeignRecords) != 0)
+	if (ptpdStartup(&ptpClock, (RunTimeOpts*)arg, ptpForeignRecords) != 0)
 	{
-		LOG_INF("PTPD: startup failed");
+		LOG_ERR("PTPD: startup failed");
 		return;
 	}
 
@@ -155,12 +130,37 @@ osThreadId ptpd_init(void)
 {
 	// Create the alert queue mailbox.
     if (sys_mbox_new(&ptp_alert_queue, 8) != ERR_OK){
-        LOG_INF("PTPD: failed to create ptp_alert_queue mbox");
+        LOG_ERR("PTPD: failed to create ptp_alert_queue mbox");
     }
+
+    // Initialize run-time options to default values.
+	rtOpts.announceInterval = DEFAULT_ANNOUNCE_INTERVAL;
+	rtOpts.syncInterval = DEFAULT_SYNC_INTERVAL;
+	rtOpts.clockQuality.clockAccuracy = DEFAULT_CLOCK_ACCURACY;
+	rtOpts.clockQuality.clockClass = DEFAULT_CLOCK_CLASS;
+	rtOpts.clockQuality.offsetScaledLogVariance = DEFAULT_CLOCK_VARIANCE; /* 7.6.3.3 */
+	rtOpts.priority1 = DEFAULT_PRIORITY1;
+	rtOpts.priority2 = DEFAULT_PRIORITY2;
+	rtOpts.domainNumber = DEFAULT_DOMAIN_NUMBER;
+	rtOpts.slaveOnly = SLAVE_ONLY;
+	rtOpts.currentUtcOffset = DEFAULT_UTC_OFFSET;
+	rtOpts.servo.noResetClock = DEFAULT_NO_RESET_CLOCK;
+	rtOpts.servo.noAdjust = NO_ADJUST;
+	rtOpts.inboundLatency.nanoseconds = DEFAULT_INBOUND_LATENCY;
+	rtOpts.outboundLatency.nanoseconds = DEFAULT_OUTBOUND_LATENCY;
+	rtOpts.servo.sDelay = DEFAULT_DELAY_S;
+	rtOpts.servo.sOffset = DEFAULT_OFFSET_S;
+	rtOpts.servo.ap = DEFAULT_AP;
+	rtOpts.servo.ai = DEFAULT_AI;
+	rtOpts.maxForeignRecords = sizeof(ptpForeignRecords) / sizeof(ptpForeignRecords[0]);
+	rtOpts.stats = PTP_TEXT_STATS;
+	rtOpts.delayMechanism = DEFAULT_DELAY_MECHANISM;
+    rtOpts.twoStepFlag = DEFAULT_TWO_STEP_FLAG;
+    rtOpts.transportSpecific = DEFAULT_TRANSPORT_SPECIFIC;
 
 	// Create the PTP daemon thread.
   	osThreadDef(PTPD, ptpd_thread, osPriorityAboveNormal, 0, DEFAULT_THREAD_STACKSIZE * 2);
-  	PTPTaskHandle = osThreadCreate(osThread(PTPD), NULL);
+  	PTPTaskHandle = osThreadCreate(osThread(PTPD), &rtOpts);
 	//sys_thread_t id = sys_thread_new("PTPD", ptpd_thread, NULL, DEFAULT_THREAD_STACKSIZE * 2, osPriorityAboveNormal);
   	return PTPTaskHandle;
 }

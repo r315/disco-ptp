@@ -24,7 +24,7 @@ void initData(PtpClock *ptpClock)
 	rtOpts = ptpClock->rtOpts;
 
 	/* Default data set */
-	ptpClock->defaultDS.twoStepFlag = DEFAULT_TWO_STEP_FLAG;
+	ptpClock->defaultDS.twoStepFlag = rtOpts->twoStepFlag;
 
 	/* Init clockIdentity with MAC address and 0xFF and 0xFE. see spec 7.5.2.2.2 */
 	if ((CLOCK_IDENTITY_LENGTH == 8) && (PTP_UUID_LENGTH == 6))
@@ -52,7 +52,7 @@ void initData(PtpClock *ptpClock)
 
 	ptpClock->defaultDS.domainNumber = rtOpts->domainNumber;
 	ptpClock->defaultDS.slaveOnly = rtOpts->slaveOnly;
-    ptpClock->defaultDS.transportSpecific = DEFAULT_TRANSPORT_SPECIFIC;
+    ptpClock->defaultDS.transportSpecific = rtOpts->transportSpecific;
 
 	/* Port configuration data set */
 

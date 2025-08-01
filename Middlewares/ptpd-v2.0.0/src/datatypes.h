@@ -278,7 +278,7 @@ typedef struct
     uint8_t priority2;              /**< spec 7.6.2.3 */
     uint8_t domainNumber;
     bool slaveOnly;
-    bool transportSpecific;
+    uint8_t transportSpecific;
 } DefaultDS;
 
 
@@ -404,6 +404,8 @@ typedef struct
     int16_t maxForeignRecords;
     enum8bit_t delayMechanism;
     Servo servo;
+    bool twoStepFlag;
+    uint8_t transportSpecific;
 } RunTimeOpts;
 
 /**
