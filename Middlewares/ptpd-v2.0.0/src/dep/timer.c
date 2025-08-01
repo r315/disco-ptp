@@ -2,6 +2,12 @@
 
 #include "ptpd.h"
 
+#ifdef PTPD_TIMER_DBG
+#define TIMER_DBG DBG
+#else
+#define TIMER_DBG(...)
+#endif
+
 /* An array to hold the various system timer handles. */
 static PTP_TIMER ptpdTimers[TIMER_ARRAY_SIZE];
 static bool ptpdTimersExpired[TIMER_ARRAY_SIZE];
@@ -9,7 +15,7 @@ static bool ptpdTimersExpired[TIMER_ARRAY_SIZE];
 static void timerCallback(PTP_TIMER timer)
 {
 	int index = (int)PTP_TIMER_GETID(timer);
-	DBG("Timer callback ID:%d\n",index);
+	TIMER_DBG("timerCallback ID:%d\n",index);
 	// Sanity check the index.
 	if (index < TIMER_ARRAY_SIZE)
 	{
@@ -25,7 +31,7 @@ void initTimer(void)
 {
 	int32_t i;
 
-	DBG("initTimer\n");
+	TIMER_DBG("initTimer\n");
 
 	/* Create the various timers used in the system. */
   for (i = 0; i < TIMER_ARRAY_SIZE; i++)
@@ -34,7 +40,7 @@ void initTimer(void)
 		// Initialize the timer.
 		//sys_timer_new(&ptpdTimers[i], timerCallback, osTimerOnce, (void *) i);
 		ptpdTimers[i] = PTP_TIMER_NEW(timerCallback, osTimerPeriodic, (void *) i);
-		DBGV("PTP Timer: %x \tID: %x\n", (unsigned int)ptpdTimers[i], (unsigned int)PTP_TIMER_GETID(ptpdTimers[i]));
+		TIMER_DBG("Timer: %x \tID: %x\n", (unsigned int)ptpdTimers[i], (unsigned int)PTP_TIMER_GETID(ptpdTimers[i]));
 		ptpdTimersExpired[i] = FALSE;
 	}
 }
@@ -45,7 +51,7 @@ void timerStop(int32_t index)
 	if (index >= TIMER_ARRAY_SIZE) return;
 
 	// Cancel the timer and reset the expired flag.
-	DBGV("timerStop: stop timer %d\n", (int)index);
+	TIMER_DBG("timerStop: stop timer %d\n", (int)index);
   	//sys_timer_stop(&ptpdTimers[index]);
 	PTP_TIMER_STOP(ptpdTimers[index]);
 
@@ -58,7 +64,7 @@ void timerStart(int32_t index, uint32_t interval_ms)
 	if (index >= TIMER_ARRAY_SIZE) return;
 
 	// Set the timer duration and start the timer.
-	DBGV("timerStart: set timer %d to %d\n", (int)index, (int)interval_ms);
+	TIMER_DBG("timerStart: set timer %d to %d\n", (int)index, (int)interval_ms);
 	ptpdTimersExpired[index] = FALSE;
   	//sys_timer_start(&ptpdTimers[index], interval_ms);
 	PTP_TIMER_START(ptpdTimers[index],interval_ms);
@@ -71,7 +77,7 @@ bool timerExpired(int32_t index)
 
 	/* Determine if the timer expired. */
 	if (!ptpdTimersExpired[index]) return FALSE;
-	DBGV("timerExpired: timer %d expired\n", (int)index);
+	TIMER_DBG("timerExpired: timer %d expired\n", (int)index);
 	ptpdTimersExpired[index] = FALSE;
 
 	return TRUE;
@@ -81,7 +87,7 @@ void shutdownTimer(void)
 {
     int32_t i;
 
-	DBG("%s\n", __func__);
+	TIMER_DBG("%s\n", __func__);
 
     for (i = 0; i < TIMER_ARRAY_SIZE; i++)
     {

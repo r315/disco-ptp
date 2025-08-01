@@ -2,6 +2,14 @@
 
 #include "../ptpd.h"
 
+#ifdef PTPD_NET_DBG
+#define NET_DBG DBGV
+#define NET_ERR(ERROR
+#else
+#define NET_DBG(...)
+#define NET_ERR(...)
+#endif
+
 /* Initialize network queue. */
 static void netQInit(BufQueue *queue)
 {
@@ -86,7 +94,7 @@ bool netShutdown(NetPath *netPath)
 {
 	ip_addr_t multicastAaddr;
 
-	DBG("netShutdown\n");
+	NET_DBG("netShutdown\n");
 
 	/* leave multicast group */
 	multicastAaddr.addr = netPath->multicastAddr;
@@ -138,7 +146,7 @@ static void netRecvEventCallback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
 	if (!netQPut(&netPath->eventQ, p))
 	{
 		pbuf_free(p);
-		ERROR("netRecvEventCallback: queue full\n");
+		NET_ERR("netRecvEventCallback: queue full\n");
 		return;
 	}
 
@@ -156,7 +164,7 @@ static void netRecvGeneralCallback(void *arg, struct udp_pcb *pcb, struct pbuf *
 	if (!netQPut(&netPath->generalQ, p))
 	{
 		pbuf_free(p);
-		ERROR("netRecvGeneralCallback: queue full\n");
+		NET_ERR("netRecvGeneralCallback: queue full\n");
 		return;
 	}
 
@@ -170,9 +178,11 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 	struct in_addr netAddr;
 	ip_addr_t interfaceAddr;
 	char addrStr[NET_ADDRESS_LENGTH];
+#ifdef PTPD_NET_DBG
     err_t res;
+#endif
 
-	DBG("netInit\n");
+	NET_DBG("netInit\n");
 
 	/* Initialize the buffer queues. */
 	netQInit(&netPath->eventQ);
@@ -182,7 +192,7 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 	interfaceAddr.addr = findIface(ptpClock->rtOpts->ifaceName, ptpClock->portUuidField, netPath);
 	if (!(interfaceAddr.addr))
 	{
-			ERROR("netInit: Failed to find interface address\n");
+			NET_ERR("netInit: Failed to find interface address\n");
 			goto fail01;
 	}
 #if PROTOCOL == IEEE802_3
@@ -192,7 +202,7 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 	netPath->eventPcb = udp_new();
 	if (NULL == netPath->eventPcb)
 	{
-			ERROR("netInit: Failed to open Event UDP PCB\n");
+			NET_ERR("netInit: Failed to open Event UDP PCB\n");
 			goto fail02;
 	}
 
@@ -200,7 +210,7 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 	netPath->generalPcb = udp_new();
 	if (NULL == netPath->generalPcb)
 	{
-			ERROR("netInit: Failed to open General UDP PCB\n");
+			NET_ERR("netInit: Failed to open General UDP PCB\n");
 			goto fail03;
 	}
 
@@ -211,28 +221,35 @@ bool netInit(NetPath *netPath, PtpClock *ptpClock)
 	memcpy(addrStr, DEFAULT_PTP_DOMAIN_ADDRESS, NET_ADDRESS_LENGTH);
 	if (!inet_aton(addrStr, &netAddr))
 	{
-			ERROR("netInit: failed to encode multi-cast address: %s\n", addrStr);
+			NET_ERR("netInit: failed to encode multi-cast address: %s\n", addrStr);
 			goto fail04;
 	}
 	netPath->multicastAddr = netAddr.s_addr;
 
 	/* Join multicast group (for receiving) on specified interface */
-
+#ifdef PTPD_NET_DBG
     res = igmp_joingroup(&interfaceAddr, (ip_addr_t *)&netAddr);
-	DBGVV("Join group: %s, %d\n",DEFAULT_PTP_DOMAIN_ADDRESS, res);
+	NET_DBG("Join group: %s, %d\n",DEFAULT_PTP_DOMAIN_ADDRESS, res);
+#else
+    igmp_joingroup(&interfaceAddr, (ip_addr_t *)&netAddr);
+#endif
 
 	/* Init Peer multicast IP address */
 	memcpy(addrStr, PEER_PTP_DOMAIN_ADDRESS, NET_ADDRESS_LENGTH);
 	if (!inet_aton(addrStr, &netAddr))
 	{
-			ERROR("netInit: failed to encode peer multi-cast address: %s\n", addrStr);
+			NET_ERR("netInit: failed to encode peer multi-cast address: %s\n", addrStr);
 			goto fail04;
 	}
 	netPath->peerMulticastAddr = netAddr.s_addr;
 
 	/* Join peer multicast group (for receiving) on specified interface */
+#ifdef PTPD_NET_DBG
     res = igmp_joingroup(&interfaceAddr, (ip_addr_t *) &netAddr);
-	DBGVV("Join group: %s, %d\n",PEER_PTP_DOMAIN_ADDRESS, res);
+	NET_DBG("Join group: %s, %d\n",PEER_PTP_DOMAIN_ADDRESS, res);
+#else
+    igmp_joingroup(&interfaceAddr, (ip_addr_t *) &netAddr);
+#endif
 
 	/* Multicast send only on specified interface. */
     netPath->eventPcb->mcast_ip4.addr = netPath->multicastAddr;
@@ -294,7 +311,7 @@ static ssize_t netRecv(octet_t *buf, TimeInternal *time, BufQueue *msgQueue)
 	/* Verify that we have enough space to store the contents. */
 	if (p->tot_len > PACKET_SIZE)
 	{
-		ERROR("netRecv: received truncated message\n");
+		NET_ERR("netRecv: received truncated message\n");
 		pbuf_free(p);
 		return 0;
 	}
@@ -302,7 +319,7 @@ static ssize_t netRecv(octet_t *buf, TimeInternal *time, BufQueue *msgQueue)
 	/* Verify there is contents to copy. */
 	if (p->tot_len == 0)
 	{
-		ERROR("netRecv: received empty packet\n");
+		NET_ERR("netRecv: received empty packet\n");
 		pbuf_free(p);
 		return 0;
 	}
@@ -361,7 +378,7 @@ static ssize_t netSend(const octet_t *buf, int16_t  length, TimeInternal *time, 
 	p = pbuf_alloc(PBUF_TRANSPORT, length, PBUF_RAM);
 	if (NULL == p)
 	{
-		ERROR("netSend: Failed to allocate Tx Buffer\n");
+		NET_ERR("netSend: Failed to allocate Tx Buffer\n");
 		goto fail01;
 	}
 
@@ -369,7 +386,7 @@ static ssize_t netSend(const octet_t *buf, int16_t  length, TimeInternal *time, 
 	result = pbuf_take(p, buf, length);
 	if (ERR_OK != result)
 	{
-		ERROR("netSend: Failed to copy data to Pbuf (%d)\n", result);
+		NET_ERR("netSend: Failed to copy data to Pbuf (%d)\n", result);
 		goto fail02;
 	}
 //	printf("PTP send buff length:%d\nBuff payload:",length);
@@ -386,7 +403,7 @@ static ssize_t netSend(const octet_t *buf, int16_t  length, TimeInternal *time, 
 #endif
 	if (ERR_OK != result)
 	{
-		ERROR("netSend: Failed to send data (%d)\n", result);
+		NET_ERR("netSend: Failed to send data (%d)\n", result);
 		goto fail02;
 	}
 
@@ -397,9 +414,9 @@ static ssize_t netSend(const octet_t *buf, int16_t  length, TimeInternal *time, 
 #else
 		getTime(time); // get timestamp from counter
 #endif
-		DBGV("netSend: %d sec %d nsec\n", (int)time->seconds, (int)time->nanoseconds);
+		NET_DBG("netSend: %d.%d\n", (int)time->seconds, (int)time->nanoseconds);
 	} else {
-		DBGV("netSend\n");
+		NET_DBG("netSend\n");
 	}
 
 
