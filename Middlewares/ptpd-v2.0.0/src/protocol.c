@@ -1304,10 +1304,10 @@ static void issueSync(PtpClock *ptpClock)
 	Timestamp originTimestamp;
 	TimeInternal internalTime;
 
-	/* try to predict outgoing time stamp */
 	getTime(&internalTime);
 	fromInternalTime(&internalTime, &originTimestamp);
 	msgPackSync(ptpClock, ptpClock->msgObuf, &originTimestamp);
+
 	if (!netSendEvent(&ptpClock->netPath, ptpClock->msgObuf, SYNC_LENGTH, &internalTime))
 	{
 		ERROR("issueSync: can't sent\n");
@@ -1321,13 +1321,7 @@ static void issueSync(PtpClock *ptpClock)
 		/* sync TX timestamp is valid */
 		if ((internalTime.seconds != 0) && (ptpClock->defaultDS.twoStepFlag))
 		{
-			// waitingForLoopback = false;
-			addTime(&internalTime, &internalTime, &ptpClock->outboundLatency);
 			issueFollowup(ptpClock, &internalTime);
-		}
-		else
-		{
-			// waitingForLoopback = ptpClock->twoStepFlag;
 		}
 	}
 }
